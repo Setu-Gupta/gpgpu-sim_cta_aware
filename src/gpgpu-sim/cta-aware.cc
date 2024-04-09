@@ -6,16 +6,18 @@
 void CTA_Aware::CTA_Aware_Prefetcher::mark_request_serviced(unsigned int warp_id)
 {
         // TODO: Verify correctness
-        this->last_serviced_warp_id = warp_id;
+        this->last_serviced_warp_id = {warp_id};
 }
 
 /*
- * Called by the scheduler to find the last warp whose prefetch request got serviced
+ * Called by the scheduler to find the last warp whose prefetch request got serviced. Resets the last_serviced_warp_before returning
  */
 unsigned int CTA_Aware::CTA_Aware_Prefetcher::get_warp_id()
 {
         // TODO: Verify correctness
-        return this->last_serviced_warp_id;
+        unsigned int retval         = this->last_serviced_warp_id;
+        this->last_serviced_warp_id = this->INVALID;
+        return retval;
 }
 
 /*
