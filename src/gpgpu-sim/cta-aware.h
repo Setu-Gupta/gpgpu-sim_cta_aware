@@ -3,6 +3,7 @@
 #include <map>
 #include <set>
 #include <list>
+#include <utility>
 
 #ifndef __CTA__#define __CTA__
 
@@ -39,6 +40,7 @@ namespace CTA_Aware
                         std::map<unsigned int, map<unsigned int, PerCTA_entry_t>> PerCTA_table; // Index 1 = CTA ID, Index 2 = Program Counter. Limited to MAX_CTA_TABLE_SIZE entries
                         std::map<unsigned int, Dist_entry_t> Dist_table;                        // Index = Program Counter, Limited to MAX_DIST_TABLE_SIZE enteries
                         unsigned int last_serviced_warp_id;                                     // Warp ID of the most recently serviced prefetch
+                        std::set<new_addr_type> get_coalesced_addressed(std::map<unsigned_int, new_addr_type> addrs)                       
                 public:
                         void mark_request_serviced(unsigned int warp_id);                       // called by LDST Unit. Sets the Warp ID for thw warp which got its prefetch request serviced
                         unsigned int get_warp_id();                                             // Called by scheduler. Returns the Warp ID of the warp for which the prefetch request was serviced most recently
