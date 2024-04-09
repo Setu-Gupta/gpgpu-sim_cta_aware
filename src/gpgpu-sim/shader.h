@@ -56,6 +56,7 @@
 #include "stack.h"
 #include "stats.h"
 #include "traffic_breakdown.h"
+#include "cta-aware.h"
 
 #define NO_OP_FLAG 0xFF
 
@@ -2074,6 +2075,9 @@ class shader_core_ctx : public core_t {
                   unsigned shader_id, unsigned tpc_id,
                   const shader_core_config *config,
                   const memory_config *mem_config, shader_core_stats *stats);
+
+  // CTA Aware prefetcher
+  CTA_Aware::CTA_Aware_Prefetcher cta_aware;
 
   // used by simt_core_cluster:
   // modifiers

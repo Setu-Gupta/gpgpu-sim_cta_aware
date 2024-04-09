@@ -10,7 +10,7 @@ void CTA_Aware::CTA_Aware_Prefetcher::mark_request_serviced(unsigned int warp_id
 }
 
 /*
- * Called by the scheduler to find the last warp whose prefetch request got serviced. Resets the last_serviced_warp_before returning
+ * Called by the scheduler to find the last warp whose prefetch request got serviced. Resets the last_serviced_warp before returning
  */
 unsigned int CTA_Aware::CTA_Aware_Prefetcher::get_warp_id()
 {
