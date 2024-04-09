@@ -31,20 +31,21 @@
 
 #include "../abstract_hardware_model.h"
 
-typedef struct {
-  address_type *v;
-  int max_size;
-  int top;
+typedef struct
+{
+                address_type* v;
+                int           max_size;
+                int           top;
 } Stack;
 
-void push_stack(Stack *S, address_type val);
-address_type pop_stack(Stack *S);
-address_type top_stack(Stack *S);
-Stack *new_stack(int size);
-void free_stack(Stack *S);
-int size_stack(Stack *S);
-int full_stack(Stack *S);
-int empty_stack(Stack *S);
-int element_exist_stack(Stack *S, address_type value);
-void reset_stack(Stack *S);
-#endif  // _MY_STACK_
+void         push_stack(Stack* S, address_type val);
+address_type pop_stack(Stack* S);
+address_type top_stack(Stack* S);
+Stack*       new_stack(int size);
+void         free_stack(Stack* S);
+int          size_stack(Stack* S);
+int          full_stack(Stack* S);
+int          empty_stack(Stack* S);
+int          element_exist_stack(Stack* S, address_type value);
+void         reset_stack(Stack* S);
+#endif // _MY_STACK_

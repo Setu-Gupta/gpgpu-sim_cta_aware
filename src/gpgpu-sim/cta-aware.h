@@ -7,12 +7,12 @@
 #include <utility>
 
 #ifndef __CTA__
-#define __CTA__
+#       define __CTA__
 
-#define VARIATION           4   // Maximum number of coalesced addresses for a traceable instruction
-#define MAX_CTA_TABLE_SIZE  4   // Maximum number of entries in the PerCTA table
-#define MAX_DIST_TABLE_SIZE 4   // Maximum number of entries in the Distance table
-#define MISPRED_THRESH      128 // Maximum number of allowed mispredictions per PC
+#       define VARIATION           4   // Maximum number of coalesced addresses for a traceable instruction
+#       define MAX_CTA_TABLE_SIZE  4   // Maximum number of entries in the PerCTA table
+#       define MAX_DIST_TABLE_SIZE 4   // Maximum number of entries in the Distance table
+#       define MISPRED_THRESH      128 // Maximum number of allowed mispredictions per PC
 
 namespace CTA_Aware
 {
