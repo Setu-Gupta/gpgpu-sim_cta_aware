@@ -82,9 +82,9 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses))));
 
                         // Compute the prefetch candidates
-                        for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); i < (d.CTA_ID * this->num_warps_per_CTA); i++)
+                        for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); idx < (d.CTA_ID * this->num_warps_per_CTA); idx++)
                         {
-                                long long int stride = this->Dist_table[d.PC];
+                                long long int stride = this->Dist_table[d.PC].stride;
                                 int distance = idx - d.Warp_ID;
                                 long long prefetch_candidate = stride * distance;
                                 if(distance != 0)
@@ -119,31 +119,47 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                 this->Dist_table.insert(std::make_pair(d.PC, Dist_entry_t(*strides.begin())));
 
                                 // Compute the prefetch candidates
+                                long long int stride = this->Dist_table[d.PC].stride;
                                 for(std::pair<const unsigned int, std::map<unsigned int, PerCTA_entry_t>>& p: PerCTA_table)
                                 {
-                                        if(p.second.find(d.PC) == p.second.end())
+                                        if(p.first == d.CTA_ID)
                                         {
-                                                for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); i < (d.CTA_ID * this->num_warps_per_CTA); i++)
+                                                for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); idx < (d.CTA_ID * this->num_warps_per_CTA); idx++)
                                                 {
-                                                        long long int stride = this->Dist_table[d.PC];
                                                         int distance = idx - d.Warp_ID;
-                                                        long long prefetch_candidate = stride * distance;
+                                                        new_addr_type prefetch_candidate = stride * distance;
                                                         if(distance != 0)
                                                                 candidates.insert(prefetch_candidate);
+                                                }
+                                        }
+                                        else
+                                        {
+                                                auto it = p.second.find(d.PC);
+                                                for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); idx < (d.CTA_ID * this->num_warps_per_CTA); idx++)
+                                                {
+                                                        int distance = idx - it->second.leading_warp_id;
+                                                        if(distance != 0)
+                                                        {
+                                                                for(new_addr_type base : it->second.base_addresses)
+                                                                {
+                                                                        new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                        candidates.insert(prefetch_candidate);   
+                                                                }   
+                                                        }
                                                 }
                                         }
                                         continue;
 
                                 }
 
-                                for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); i < (d.CTA_ID * this->num_warps_per_CTA); i++)
-                                {
-                                        long long int stride = this->Dist_table[d.PC];
-                                        int distance = idx - d.Warp_ID;
-                                        long long prefetch_candidate = stride * distance;
-                                        if(distance != 0)
-                                                candidates.insert(prefetch_candidate);
-                                }
+                                // for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); idx < (d.CTA_ID * this->num_warps_per_CTA); idx++)
+                                // {
+                                //         long long int stride = this->Dist_table[d.PC].stride;
+                                //         int distance = idx - d.Warp_ID;
+                                //         long long prefetch_candidate = stride * distance;
+                                //         if(distance != 0)
+                                //                 candidates.insert(prefetch_candidate);
+                                // }
                         }
 
                 }
@@ -174,6 +190,30 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                 this->Dist_table[d.PC].misprediction_counter++;
                         
                         // TODO: Complete
+                        if(d.Warp_ID == prev_entry.leading_warp_id)
+                        {
+                                if(std::find(prev_entry.base_addresses.begin(), prev_entry.base_addresses.end(), d.base_addresses[0]) == prev_entry.base_addresses.end())
+                                {
+                                        if(this->Dist_table[d.PC].misprediction_counter < 128)
+                                        {
+                                                prev_entry.base_addresses = d.base_addresses;
+                                                long long int stride = this->Dist_table[d.PC].stride;
+                                                for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); idx < (d.CTA_ID * this->num_warps_per_CTA); idx++)
+                                                {
+                                                        int distance = idx - d.Warp_ID;
+                                                        long long prefetch_candidate = stride * distance;
+                                                        if(distance != 0)
+                                                        {
+                                                                for(new_addr_type base : prev_entry.base_addresses)
+                                                                {
+                                                                        new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                        candidates.insert(prefetch_candidate);   
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
                 }
         }
         return candidates;
