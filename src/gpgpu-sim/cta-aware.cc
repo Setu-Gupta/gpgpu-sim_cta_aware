@@ -1,6 +1,85 @@
 #include "cta-aware.h"
 
 /*
+ * Coalesces addresses and returns a set
+ */
+std::vector<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::get_coalesced_addresses(const std::vector<new_addr_type>& addrs) const
+{
+        // TODO: Verify correctness
+        std::set<new_addr_type> coalesced_addresses;
+        for(const new_addr_type& a: addrs) // Executed once for each active thread in a warp
+        {
+                new_addr_type masked_addr = a & ~((1ULL << 8) - 1);
+                coalesced_addresses.insert(masked_addr);
+        }
+
+        std::vector<new_addr_type> retvec;
+        for(const new_addr_type& a: coalesced_addresses)
+                retvec.push_back(a);
+        return retvec;
+}
+
+/*
+ * Checkes whether there is an entry mapped to the given CTA_ID and PC in the PerCTA Table
+ */
+bool CTA_Aware::CTA_Aware_Prefetcher::in_PerCTA(const unsigned int CTA_ID, const unsigned int PC) const
+{
+        // TODO: Verify correctness
+        if(this->PerCTA_table.find(CTA_ID) == this->PerCTA_table.end())
+                return false;
+        return (PerCTA_table[CTA_ID].find(PC) != this->PerCTA_table[CTA_ID].end());
+}
+
+/*
+ * Checkes whether there is an entry mapped to the given PC in the Dist Table
+ */
+bool CTA_Aware::CTA_Aware_Prefetcher::in_Dist(unsigned int PC) const
+{
+        // TODO: Verify correctness
+        return (Dist_table.find(PC) != this->Dist_table.end());
+}
+
+/*
+ * Returns the size of the PerCTA Table
+ */
+std::size_t size_of_PerCTA() const
+{
+        // TODO: Verify correctness
+        std::size_t total_enteries = 0;
+
+        for(const std::pair<const unsigned int, std::map<unsigned int, PerCTA_entry_t>>& entry: this->PerCTA_table)
+                total_enteries += entry.second.size();
+
+        return total_enteries;
+}
+
+/*
+ * Returns the size of the Dist Table
+ */
+std::size_t size_of_Dist() const
+{
+        // TODO: Verify correctness
+        return this->Dist_table.size();
+}
+
+/*
+ * Inserts an entry at CTA_ID, PC in the PerCTA Table. Evicts the least recently used entry if the table size exceeeds MAX_CTA_TABLE_SIZE after insertion
+ */
+void insert_in_PerCTA(unsigned int CTA_ID, unsigned int PC, PerCTA_entry_t&& entry)
+{
+       // TODO: Complete
+
+}
+
+/*
+ * Inserts an entry at CTA_ID, PC in the Dist Table. Evicts the least recently used entry if the table size exceeeds MAX_DIST_TABLE_SIZE after insertion
+ */
+void insert_in_Dist(unsigned int PC, Dist_entry_t&& entry)
+{
+       // TODO: Complete 
+}
+
+/*
  * Called by LDST unit whenever a prefetch request gets serviced
  * */
 void CTA_Aware::CTA_Aware_Prefetcher::mark_request_serviced(unsigned int warp_id)
@@ -18,38 +97,6 @@ unsigned int CTA_Aware::CTA_Aware_Prefetcher::get_warp_id()
         unsigned int retval         = this->last_serviced_warp_id;
         this->last_serviced_warp_id = this->INVALID;
         return retval;
-}
-
-/*
- * Coalesces addresses and returns a set
- */
-std::vector<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::get_coalesced_addresses(std::map<unsigned int, new_addr_type>& addrs)
-{
-        // TODO: Verify correctness
-        std::set<new_addr_type> coalesced_addresses;
-        for(const std::pair<const unsigned int, new_addr_type>& p: addrs) // Executed once for each active thread in a warp
-        {
-                new_addr_type masked_addr = p.second & ~((1ULL << 8) - 1);
-                coalesced_addresses.insert(masked_addr);
-        }
-
-        std::vector<new_addr_type> retvec;
-        for(const new_addr_type& a: coalesced_addresses)
-                retvec.push_back(a);
-        return retvec;
-}
-
-
-bool CTA_Aware::CTA_Aware_Prefetcher::in_PerCTA(unsigned int CTA_ID, unsigned int PC)
-{
-        if(this->PerCTA_table.find(CTA_ID) == this->PerCTA_table.end())
-                return false;
-        return (PerCTA_table[CTA_ID].find(PC) != this->PerCTA_table[CTA_ID].end());
-}
-
-bool CTA_Aware::CTA_Aware_Prefetcher::in_Dist(unsigned int PC)
-{
-        return (Dist_table.find(PC) != this->Dist_table.end());
 }
 
 /*

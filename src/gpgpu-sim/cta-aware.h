@@ -24,65 +24,65 @@ namespace CTA_Aware
 
         struct PerCTA_entry_t
         {
-                        unsigned int  leading_warp_id;
-                        std::vector<new_addr_type> base_addresses; // There can be up to 32 addresses but after coalescing only VARIATION number are left
-                        
-                        PerCTA_entry_t(): leading_warp_id(UINT_MAX)
-                        {
-                                this->base_addresses.clear();
-                        }
+                unsigned long long                    cycle;
+                unsigned int  leading_warp_id;
+                std::vector<new_addr_type> base_addresses; // There can be up to 32 addresses but after coalescing only VARIATION number are left
+                
+                PerCTA_entry_t(): leading_warp_id(UINT_MAX)
+                {
+                        this->base_addresses.clear();
+                }
 
-                        PerCTA_entry_t(unsigned int wid, std::vector<new_addr_type>&& ba): leading_warp_id(wid), base_addresses(ba)
-                        {
-                        }
-                        
-                        PerCTA_entry_t(const PerCTA_entry_t& other)
-                        {
-                                this->leading_warp_id = other.leading_warp_id;
-                                this->base_addresses = other.base_addresses;
-                        }
-                        
-                        PerCTA_entry_t& operator=(PerCTA_entry_t& other)
-                        {
-                                this->leading_warp_id = other.leading_warp_id;
-                                this->base_addresses = other.base_addresses;
-                                return *this;
-                        }
+                PerCTA_entry_t(unsigned int wid, std::vector<new_addr_type>&& ba): leading_warp_id(wid), base_addresses(ba)
+                {
+                }
+                
+                PerCTA_entry_t(const PerCTA_entry_t& other)
+                {
+                        this->leading_warp_id = other.leading_warp_id;
+                        this->base_addresses = other.base_addresses;
+                }
+                
+                PerCTA_entry_t& operator=(PerCTA_entry_t& other)
+                {
+                        this->leading_warp_id = other.leading_warp_id;
+                        this->base_addresses = other.base_addresses;
+                        return *this;
+                }
         };
 
         struct Dist_entry_t
         {
-                        unsigned long long                    cycle;
-                        long long int stride;
-                        unsigned int  misprediction_counter; // Limited to MISPRED_THRESH
-                        
-                        Dist_entry_t(): cycle(ULLONG_MAX), stride(0), misprediction_counter(0)
-                        {
-                        }
-                        
-                        Dist_entry_t(long long int stride): stride(stride), misprediction_counter(0)
-                        {
-                        }
-                        
-                        Dist_entry_t(const Dist_entry_t& other)
-                        {
-                                this->cycle = other.cycle;
-                                this->stride = other.stride;
-                                this->misprediction_counter = other.misprediction_counter;
-                        }
-                        
-                        Dist_entry_t& operator=(Dist_entry_t& other)
-                        {
-                                this->cycle = other.cycle;
-                                this->stride = other.stride;
-                                this->misprediction_counter = other.misprediction_counter;
-                                return *this;
-                        }
+                unsigned long long                    cycle;
+                long long int stride;
+                unsigned int  misprediction_counter; // Limited to MISPRED_THRESH
+                
+                Dist_entry_t(): cycle(ULLONG_MAX), stride(0), misprediction_counter(0)
+                {
+                }
+                
+                Dist_entry_t(long long int stride): stride(stride), misprediction_counter(0)
+                {
+                }
+                
+                Dist_entry_t(const Dist_entry_t& other)
+                {
+                        this->cycle = other.cycle;
+                        this->stride = other.stride;
+                        this->misprediction_counter = other.misprediction_counter;
+                }
+                
+                Dist_entry_t& operator=(Dist_entry_t& other)
+                {
+                        this->cycle = other.cycle;
+                        this->stride = other.stride;
+                        this->misprediction_counter = other.misprediction_counter;
+                        return *this;
+                }
         };
 
         struct CTA_data_t
         {
-                        unsigned long long                    cycle;
                         unsigned int                          CTA_ID;
                         unsigned int                          PC;
                         unsigned int                          Warp_ID;        // All Warp IDs are unique across the SM, i.e. no two CTAs can have a warp with the same ID
