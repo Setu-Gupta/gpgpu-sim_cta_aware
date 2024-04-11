@@ -10,6 +10,7 @@
 #include <iostream>
 #include <cassert>
 #include <utility>
+#include <limits>
 
 #ifndef __CTA__
 #define __CTA__
@@ -97,11 +98,11 @@ namespace CTA_Aware
                         unsigned int                                                   last_serviced_warp_id; // Warp ID of the most recently serviced prefetch
                         std::size_t                                                    num_warps_per_CTA;
 
-                        std::vector<new_addr_type>                                     get_coalesced_addresses(std::vector<new_addr_type>& addrs);
-                        bool                                                           in_PerCTA(unsigned int CTA_ID, unsigned int PC);
-                        bool                                                           in_Dist(unsigned int PC);
-                        std::size_t                                                    size_of_PerCTA();
-                        std::size_t                                                    size_of_Dist();
+                        std::vector<new_addr_type>                                     get_coalesced_addresses(const std::vector<new_addr_type>& addrs) const;
+                        bool                                                           in_PerCTA(const unsigned int CTA_ID, const unsigned int PC) const;
+                        bool                                                           in_Dist(unsigned int PC) const;
+                        std::size_t                                                    size_of_PerCTA(unsigned CTA_ID) const;
+                        std::size_t                                                    size_of_Dist() const;
                         void                                                           insert_in_PerCTA(unsigned int CTA_ID, unsigned int PC, PerCTA_entry_t&& entry);
                         void                                                           insert_in_Dist(unsigned int PC, Dist_entry_t&& entry);
 

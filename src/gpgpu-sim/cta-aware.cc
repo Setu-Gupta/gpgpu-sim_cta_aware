@@ -25,9 +25,12 @@ std::vector<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::get_coalesced_addres
 bool CTA_Aware::CTA_Aware_Prefetcher::in_PerCTA(const unsigned int CTA_ID, const unsigned int PC) const
 {
         // TODO: Verify correctness
-        if(this->PerCTA_table.find(CTA_ID) == this->PerCTA_table.end())
+        auto cta_iter = this->PerCTA_table.find(CTA_ID);
+        if(cta_iter == this->PerCTA_table.end())
                 return false;
-        return (PerCTA_table[CTA_ID].find(PC) != this->PerCTA_table[CTA_ID].end());
+        
+        auto& pc_map = cta_iter->second;
+        return (pc_map.find(PC) != pc_map.end());
 }
 
 /*
@@ -42,21 +45,21 @@ bool CTA_Aware::CTA_Aware_Prefetcher::in_Dist(unsigned int PC) const
 /*
  * Returns the size of the PerCTA Table
  */
-std::size_t size_of_PerCTA() const
+std::size_t CTA_Aware::CTA_Aware_Prefetcher::size_of_PerCTA(unsigned int CTA_ID) const
 {
         // TODO: Verify correctness
-        std::size_t total_enteries = 0;
-
-        for(const std::pair<const unsigned int, std::map<unsigned int, PerCTA_entry_t>>& entry: this->PerCTA_table)
-                total_enteries += entry.second.size();
-
-        return total_enteries;
+        //std::size_t total_enteries = 0;
+        
+        // for(const std::pair<const unsigned int, std::map<unsigned int, PerCTA_entry_t>>& entry: this->PerCTA_table)
+        //         total_enteries += entry.second.size();
+        auto entry = PerCTA_table.find(CTA_ID);
+        return entry->second.size();
 }
 
 /*
  * Returns the size of the Dist Table
  */
-std::size_t size_of_Dist() const
+std::size_t CTA_Aware::CTA_Aware_Prefetcher::size_of_Dist() const
 {
         // TODO: Verify correctness
         return this->Dist_table.size();
@@ -65,18 +68,50 @@ std::size_t size_of_Dist() const
 /*
  * Inserts an entry at CTA_ID, PC in the PerCTA Table. Evicts the least recently used entry if the table size exceeeds MAX_CTA_TABLE_SIZE after insertion
  */
-void insert_in_PerCTA(unsigned int CTA_ID, unsigned int PC, PerCTA_entry_t&& entry)
+void CTA_Aware::CTA_Aware_Prefetcher::insert_in_PerCTA(unsigned int CTA_ID, unsigned int PC, CTA_Aware::PerCTA_entry_t&& entry)
 {
        // TODO: Complete
-
+       PerCTA_table[CTA_ID][PC] = std::move(entry);
+       if(size_of_PerCTA(CTA_ID) > MAX_CTA_TABLE_SIZE)
+       {
+                auto entry = PerCTA_table.find(CTA_ID);
+                long long lru = std::numeric_limits<long long>::max();
+                unsigned evicted = 0;
+                for(auto it = entry->second.begin(); it != entry->second.end(); it++)
+                {
+                        if(it->second.cycle < lru)
+                        {
+                                lru = it->second.cycle;
+                                evicted = it->first;
+                        }
+                }
+                assert(evicted!=0);
+                PerCTA_table[CTA_ID].erase(evicted);
+       }
 }
 
 /*
  * Inserts an entry at CTA_ID, PC in the Dist Table. Evicts the least recently used entry if the table size exceeeds MAX_DIST_TABLE_SIZE after insertion
  */
-void insert_in_Dist(unsigned int PC, Dist_entry_t&& entry)
+void CTA_Aware::CTA_Aware_Prefetcher::insert_in_Dist(unsigned int PC, CTA_Aware::Dist_entry_t&& entry)
 {
        // TODO: Complete 
+       Dist_table[PC] = std::move(entry);
+       if(size_of_Dist() > MAX_DIST_TABLE_SIZE)
+       {
+                long long lru = std::numeric_limits<long long>::max();
+                unsigned evicted = 0;
+                for(auto it = Dist_table.begin(); it != Dist_table.end(); it++)
+                {
+                        if(it->second.cycle < lru)
+                        {
+                                lru = it->second.cycle;
+                                evicted = it->first;
+                        }
+                }
+                assert(evicted!=0);
+                Dist_table.erase(evicted);
+       }
 }
 
 /*
@@ -102,7 +137,7 @@ unsigned int CTA_Aware::CTA_Aware_Prefetcher::get_warp_id()
 /*
  * Called by the LDST unit with the uncoalesced addresses of all threads of a warp
  */
-std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_candidates(std::list<CTA_Aware::CTA_data_t> data)
+std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_candidates(std::list<CTA_Aware::CTA_data_t> data, unsigned long long cycle)
 {
         std::list <new_addr_type> candidates;
         // TODO: Complete
