@@ -84,12 +84,13 @@ namespace CTA_Aware
 
         struct CTA_data_t
         {
+                        unsigned int                          num_warps;
                         unsigned int                          CTA_ID;
                         new_addr_type                         PC;
                         unsigned int                          Warp_ID;        // All Warp IDs are unique across the SM, i.e. no two CTAs can have a warp with the same ID
                         std::vector<new_addr_type> base_addresses; // Memory addresses for all threads in the warp
 
-                        CTA_data_t(const unsigned int ctaid, const new_addr_type pc, const unsigned int wid, const std::vector<new_addr_type>&& ba): CTA_ID(ctaid), PC(pc), Warp_ID(wid)
+                        CTA_data_t(const unsigned int n_warps, unsigned int ctaid, const new_addr_type pc, const unsigned int wid, const std::vector<new_addr_type>&& ba): num_warps(n_warps), CTA_ID(ctaid), PC(pc), Warp_ID(wid)
                         {
                                 this->base_addresses = ba;
                         }
@@ -101,7 +102,6 @@ namespace CTA_Aware
                         std::map<unsigned int, std::map<unsigned int, PerCTA_entry_t>> PerCTA_table;          // Index 1 = CTA ID, Index 2 = Program Counter. Limited to MAX_CTA_TABLE_SIZE entries
                         std::map<unsigned int, Dist_entry_t>                           Dist_table;            // Index = Program Counter, Limited to MAX_DIST_TABLE_SIZE entries
                         unsigned int                                                   last_serviced_warp_id; // Warp ID of the most recently serviced prefetch
-                        std::size_t                                                    num_warps_per_CTA;
 
                         std::vector<new_addr_type>                                     get_coalesced_addresses(const std::vector<new_addr_type>& addrs) const;
                         bool                                                           in_PerCTA(const unsigned int CTA_ID, const unsigned int PC) const;
@@ -119,7 +119,7 @@ namespace CTA_Aware
                                                                        // value, the last_serviced_warp_id is reset to INVALID
                         std::list<new_addr_type> generate_prefetch_candidates(std::list<CTA_data_t> data, unsigned long long cycle); // Called by LDST. Returns a list of prefetch candidates
 
-                        CTA_Aware_Prefetcher(unsigned int num_warps): last_serviced_warp_id(INVALID), num_warps_per_CTA(num_warps) {}
+                        CTA_Aware_Prefetcher(): last_serviced_warp_id(INVALID) {}
         };
 } // namespace CTA_Aware
 

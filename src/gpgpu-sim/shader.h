@@ -2961,7 +2961,7 @@ class exec_shader_core_ctx: public shader_core_ctx
                         create_shd_warp();
                         create_schedulers();
                         create_exec_pipeline();
-                        cta_aware = new CTA_Aware::CTA_Aware_Prefetcher(this->get_kernel()->threads_per_cta() / m_config->warp_size);
+                        cta_aware = new CTA_Aware::CTA_Aware_Prefetcher();
                 }
 
                 virtual void                 checkExecutionStatusAndUpdate(warp_inst_t& inst, unsigned t, unsigned tid);

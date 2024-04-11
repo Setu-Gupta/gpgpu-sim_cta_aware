@@ -2310,9 +2310,10 @@ void ldst_unit::L1_latency_queue_cycle()
                         std::vector<new_addr_type> s_thread_address = mf_next->get_inst().get_first_valid_addr();
                         //TODO cta-aware should get its imputs here.
                         std::list<CTA_Aware::CTA_data_t> d;
-                        CTA_Aware::CTA_data_t data(ctaid, mf_next->get_inst().pc, mf_next->get_inst().warp_id(), std::move(s_thread_address));
+                        CTA_Aware::CTA_data_t data((this->m_core)->get_kernel()->threads_per_cta() / m_config->warp_size, ctaid, mf_next->get_inst().pc, mf_next->get_inst().warp_id(), std::move(s_thread_address));
                         d.emplace_back(data);
                         std::list<new_addr_type> prefetch_requests = m_core->get_prefetcher()->generate_prefetch_candidates( d, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
+                        std::list<new_addr_type> temp_list;
                         for(auto& req :prefetch_requests)
                         {
                                 mem_access_t* access =  new mem_access_t(GLOBAL_ACC_R, req, 32, false);
@@ -2335,10 +2336,14 @@ void ldst_unit::L1_latency_queue_cycle()
                                 }
                                 if(prefetch_status != RESERVATION_FAIL)
                                 {
-                                      prefetch_requests.pop_front();  
+                                      temp_list.push_back(req);  
                                 }
                         }
-
+                        for(auto& temp : temp_list)
+                        {
+                                prefetch_requests.remove(temp);
+                        }
+                        temp_list.clear();
                         enum cache_request_status status = m_L1D->access(mf_next->get_addr(), mf_next, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle, events);
 
                         bool write_sent = was_write_sent(events);
