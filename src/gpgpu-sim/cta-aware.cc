@@ -71,7 +71,7 @@ std::size_t CTA_Aware::CTA_Aware_Prefetcher::size_of_Dist() const
 void CTA_Aware::CTA_Aware_Prefetcher::insert_in_PerCTA(unsigned int CTA_ID, unsigned int PC, CTA_Aware::PerCTA_entry_t&& entry)
 {
        // TODO: Complete
-       PerCTA_table[CTA_ID][PC] = std::move(entry);
+       PerCTA_table[CTA_ID][PC] = entry;
        if(size_of_PerCTA(CTA_ID) > MAX_CTA_TABLE_SIZE)
        {
                 auto entry = PerCTA_table.find(CTA_ID);
@@ -96,7 +96,7 @@ void CTA_Aware::CTA_Aware_Prefetcher::insert_in_PerCTA(unsigned int CTA_ID, unsi
 void CTA_Aware::CTA_Aware_Prefetcher::insert_in_Dist(unsigned int PC, CTA_Aware::Dist_entry_t&& entry)
 {
        // TODO: Complete 
-       Dist_table[PC] = std::move(entry);
+       Dist_table[PC] = entry;
        if(size_of_Dist() > MAX_DIST_TABLE_SIZE)
        {
                 long long lru = std::numeric_limits<long long>::max();
@@ -170,7 +170,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                 int distance = idx - d.Warp_ID;
                                 long long prefetch_candidate = stride * distance;
                                 if(distance != 0)
-                                        candidates.insert(prefetch_candidate);
+                                        candidates.emplace_back(prefetch_candidate);
                         }
                 }
                 else if(this->in_PerCTA(d.CTA_ID, d.PC) && !this->in_Dist(d.PC))
@@ -211,7 +211,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                         int distance = idx - d.Warp_ID;
                                                         new_addr_type prefetch_candidate = stride * distance;
                                                         if(distance != 0)
-                                                                candidates.insert(prefetch_candidate);
+                                                                candidates.emplace_back(prefetch_candidate);
                                                 }
                                         }
                                         else
@@ -225,7 +225,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                 for(new_addr_type base : it->second.base_addresses)
                                                                 {
                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                        candidates.insert(prefetch_candidate);   
+                                                                        candidates.emplace_back(prefetch_candidate);   
                                                                 }   
                                                         }
                                                 }
@@ -289,7 +289,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                 for(new_addr_type base : prev_entry.base_addresses)
                                                                 {
                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                        candidates.insert(prefetch_candidate);   
+                                                                        candidates.emplace_back(prefetch_candidate);   
                                                                 }
                                                         }
                                                 }

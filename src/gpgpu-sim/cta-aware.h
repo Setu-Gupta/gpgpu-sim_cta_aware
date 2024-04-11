@@ -85,9 +85,14 @@ namespace CTA_Aware
         struct CTA_data_t
         {
                         unsigned int                          CTA_ID;
-                        unsigned int                          PC;
+                        new_addr_type                         PC;
                         unsigned int                          Warp_ID;        // All Warp IDs are unique across the SM, i.e. no two CTAs can have a warp with the same ID
                         std::vector<new_addr_type> base_addresses; // Memory addresses for all threads in the warp
+
+                        CTA_data_t(const unsigned int ctaid, const new_addr_type pc, const unsigned int wid, const std::vector<new_addr_type>&& ba): CTA_ID(ctaid), PC(pc), Warp_ID(wid)
+                        {
+                                this->base_addresses = ba;
+                        }
         };
 
         class CTA_Aware_Prefetcher

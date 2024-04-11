@@ -826,6 +826,13 @@ class mem_access_t {
     m_req_size = size;
     m_write = wr;
   }
+  mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
+               bool wr) {
+    m_type = type;
+    m_addr = address;
+    m_req_size = size;
+    m_write = wr;
+  }
 
   new_addr_type get_addr() const { return m_addr; }
   void set_addr(new_addr_type addr) { m_addr = addr; }
@@ -1115,15 +1122,13 @@ class warp_inst_t : public inst_t {
     for (unsigned i = 0; i < num_addrs; i++)
       m_per_scalar_thread[n].memreqaddr[i] = addr[i];
   }
-  std::map<int, new_addr_type> get_first_valid_addr() const{
+  std::vector<new_addr_type> get_first_valid_addr() const{
      assert( m_per_scalar_thread_valid );
-     std::map<int, new_addr_type> valid_addrs;
+     std::vector<new_addr_type> valid_addrs;
      for(unsigned i=0; i<32; i++)
      {
         if(active(i))
-           valid_addrs[i] = m_per_scalar_thread[i].memreqaddr[0];
-        else
-           valid_addrs[i] = 0;
+           valid_addrs.push_back( m_per_scalar_thread[i].memreqaddr[0]);
      }
      return valid_addrs;
  }

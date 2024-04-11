@@ -2348,6 +2348,11 @@ class shader_core_mem_fetch_allocator: public mem_fetch_allocator
                         m_memory_config = config;
                 }
                 mem_fetch* alloc(new_addr_type addr, mem_access_type type, unsigned size, bool wr, unsigned long long cycle) const;
+                mem_fetch *alloc(new_addr_type addr, mem_access_type type,
+                   const active_mask_t &active_mask,
+                   const mem_access_byte_mask_t &byte_mask,
+                   const mem_access_sector_mask_t &sector_mask, unsigned size,
+                   bool wr, unsigned long long cycle, unsigned wid, unsigned sid) const;
                 mem_fetch* alloc(new_addr_type                   addr,
                                  mem_access_type                 type,
                                  const active_mask_t&            active_mask,
@@ -2781,6 +2786,7 @@ class shader_core_ctx: public core_t
                 }
                 bool check_if_non_released_reduction_barrier(warp_inst_t& inst);
                 unsigned getCTAId(unsigned warpId) {return m_warp[warpId]->get_cta_id();}
+                CTA_Aware::CTA_Aware_Prefetcher* get_prefetcher() {return cta_aware;}
 
         protected:
                 unsigned inactive_lanes_accesses_sfu(unsigned active_count, double latency)
