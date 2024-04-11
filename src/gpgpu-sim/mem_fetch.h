@@ -234,6 +234,12 @@ class mem_fetch
                 {
                         return original_wr_mf;
                 }
+                void set_prefetch_flag(){s_prefetched=true;}
+                bool is_prefetched(){return s_prefetched;}
+                void set_hit_flag(){s_hit=true;}
+                bool is_hit(){return s_hit;}
+                void set_found(){is_found=true;}
+                bool prefetch_found(){return is_found;}
 
         private:
                 // request source information
@@ -277,6 +283,10 @@ class mem_fetch
                                            // size), so the pointer refers to the original request
                 mem_fetch* original_wr_mf; // this pointer refers to the original write req,
                                            // when fetch-on-write policy is used
+
+                bool s_prefetched;
+                bool s_hit;
+                bool is_found;
 };
 
 #endif
