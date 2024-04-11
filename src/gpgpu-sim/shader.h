@@ -2780,6 +2780,7 @@ class shader_core_ctx: public core_t
                         m_stats->n_simt_to_mem[m_sid] += n_flits;
                 }
                 bool check_if_non_released_reduction_barrier(warp_inst_t& inst);
+                unsigned getCTAId(unsigned warpId) {return m_warp[warpId]->get_cta_id();}
 
         protected:
                 unsigned inactive_lanes_accesses_sfu(unsigned active_count, double latency)

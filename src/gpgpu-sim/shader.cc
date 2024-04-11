@@ -2291,6 +2291,12 @@ void ldst_unit::L1_latency_queue_cycle()
                 {
                         mem_fetch*                mf_next = l1_latency_queue[j][0];
                         std::list<cache_event>    events;
+                        unsigned ctaid = (this->m_core)->getCTAId(mf_next->get_inst().warp_id());
+                        unsigned sid = m_sid;
+                        unsigned kernelid = (this->m_core)->get_kernel()->get_uid();
+                        unsigned s_warpsize;
+                        std::map<int, new_addr_type> s_thread_address = mf_next->get_inst().get_first_valid_addr();
+                        //TODO cta-aware should get its imputs here.
                         enum cache_request_status status = m_L1D->access(mf_next->get_addr(), mf_next, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle, events);
 
                         bool write_sent = was_write_sent(events);

@@ -1115,6 +1115,18 @@ class warp_inst_t : public inst_t {
     for (unsigned i = 0; i < num_addrs; i++)
       m_per_scalar_thread[n].memreqaddr[i] = addr[i];
   }
+  std::map<int, new_addr_type> get_first_valid_addr() const{
+     assert( m_per_scalar_thread_valid );
+     std::map<int, new_addr_type> valid_addrs;
+     for(unsigned i=0; i<32; i++)
+     {
+        if(active(i))
+           valid_addrs[i] = m_per_scalar_thread[i].memreqaddr[0];
+        else
+           valid_addrs[i] = 0;
+     }
+     return valid_addrs;
+ }
   void print_m_accessq() {
     if (accessq_empty())
       return;
