@@ -2325,6 +2325,7 @@ void ldst_unit::L1_latency_queue_cycle()
                                         mem_fetch *mf = m_mf_allocator->alloc(access->get_addr(),access->get_type(), mf_next->get_access_warp_mask(), mf_next->get_access_byte_mask(), sector_mask, access->get_size(), false, m_core->get_gpu()->gpu_sim_cycle +
                                         m_core->get_gpu()->gpu_tot_sim_cycle, data.Warp_ID, m_sid);
                                         std::list<cache_event> prefetch_events;
+                                        mf->set_prefetch_flag();
                                         enum cache_request_status prefetch_status = m_L1D->access(mf->get_addr(),mf,m_core->get_gpu()->gpu_sim_cycle +
                                         m_core->get_gpu()->gpu_tot_sim_cycle,prefetch_events);
                                         bool s_write_sent = was_write_sent(prefetch_events);
@@ -3138,6 +3139,10 @@ void ldst_unit::cycle()
                                         if(m_L1D->fill_port_free())
                                         {
                                                 m_L1D->fill(mf, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
+                                                if(mf->is_prefetched())
+                                                {
+                                                        m_core->get_prefetcher()->mark_request_serviced(mf->get_wid());
+                                                }
                                                 m_response_fifo.pop_front();
                                         }
                                 }
