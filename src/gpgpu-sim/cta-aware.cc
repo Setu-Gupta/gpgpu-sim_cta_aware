@@ -36,7 +36,7 @@ bool CTA_Aware::CTA_Aware_Prefetcher::in_PerCTA(const unsigned int CTA_ID, const
 std::size_t CTA_Aware::CTA_Aware_Prefetcher::size_of_PerCTA(unsigned int CTA_ID) const
 {
         auto entry = PerCTA_table.find(CTA_ID);
-        if(entry == PerCTA_table.end()
+        if(entry == PerCTA_table.end())
                 return 0;
         return entry->second.size();
 }
@@ -182,11 +182,10 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         long long int stride = this->Dist_table[d.PC].stride;
                         for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
                         {
-                                int           distance           = idx - d.Warp_ID;
-                                long long     prefetch_candidate = stride * distance;
+                                int distance = idx - d.Warp_ID;
                                 if(distance != 0)
                                 {
-                                        for(new_addr_type base: it->second.base_addresses)
+                                        for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
                                         {
                                                 new_addr_type prefetch_candidate = base + (stride * distance);
                                                 candidates.emplace_back(prefetch_candidate);
@@ -232,10 +231,10 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                         {
                                                 for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
                                                 {
-                                                        int           distance           = idx - d.Warp_ID;
+                                                        int distance = idx - d.Warp_ID;
                                                         if(distance != 0)
                                                         {
-                                                                for(new_addr_type base: it->second.base_addresses)
+                                                                for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
                                                                 {
                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
                                                                         candidates.emplace_back(prefetch_candidate);
@@ -248,9 +247,9 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                 auto it = p.second.find(d.PC);
                                                 if(it != p.second.end())
                                                 {
-                                                        for(unsigned int idx = (((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
+                                                        for(unsigned int idx = ((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
                                                         {
-                                                                int distance = idx - it->second.leading_warp_id;
+                                                                int distance = idx - d.Warp_ID;
                                                                 if(distance != 0)
                                                                 {
                                                                         for(new_addr_type base: it->second.base_addresses)
@@ -302,6 +301,9 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
 
                                         if(this->Dist_table[d.PC].misprediction_counter < 128)
                                         {
+                                                // Compute the prefetch candidates
+                                                long long int stride = this->Dist_table[d.PC].stride;
+
                                                 for(const auto& p: PerCTA_table)
                                                 {
                                                         if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
@@ -311,7 +313,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                         int distance = idx - d.Warp_ID;
                                                                         if(distance != 0)
                                                                         {
-                                                                                for(new_addr_type base: it->second.base_addresses)
+                                                                                for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
                                                                                 {
                                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
                                                                                         candidates.emplace_back(prefetch_candidate);
@@ -324,7 +326,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                 auto it = p.second.find(d.PC);
                                                                 if(it != p.second.end())
                                                                 {
-                                                                        for(unsigned int idx = (((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
+                                                                        for(unsigned int idx = ((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
                                                                         {
                                                                                 int distance = idx - it->second.leading_warp_id;
                                                                                 if(distance != 0)
