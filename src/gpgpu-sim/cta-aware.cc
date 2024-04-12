@@ -160,24 +160,18 @@ unsigned int CTA_Aware::CTA_Aware_Prefetcher::get_warp_id()
 std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_candidates(std::list<CTA_Aware::CTA_data_t> data, unsigned long long cycle)
 {
         std::list<new_addr_type> candidates;
-        // TODO: Complete
         for(CTA_Aware::CTA_data_t& d: data) // Executed once for each warp in the SM
         {
                 // Create a set of coalesced addresses
                 std::vector<new_addr_type> coalesced_addresses = this->get_coalesced_addresses(std::move(d.base_addresses));
                 if(coalesced_addresses.size() > VARIATION)
-                {
-                        // std::cout << "Not tracking addresses for Warp " << d.Warp_ID
-                        //         << " of CTA " << d.CTA_ID << ". Found "
-                        //         <<  coalesced_addresses.size() << " addresses" << std::endl;
                         continue;
-                }
 
                 if(!this->in_PerCTA(d.CTA_ID, d.PC) && !this->in_Dist(d.PC))
                 {
                         // This is the first time that we've seen this CTA, PC pair
                         this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses), cycle)));
-                        this->print_PerCTA_table();
+                        // this->print_PerCTA_table();
                 }
                 else if(!this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
                 {
@@ -185,19 +179,27 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses), cycle)));
 
                         // Compute the prefetch candidates
+                        long long int stride = this->Dist_table[d.PC].stride;
                         for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
                         {
-                                long long int stride             = this->Dist_table[d.PC].stride;
                                 int           distance           = idx - d.Warp_ID;
                                 long long     prefetch_candidate = stride * distance;
                                 if(distance != 0)
-                                        candidates.emplace_back(prefetch_candidate);
+                                {
+                                        for(new_addr_type base: it->second.base_addresses)
+                                        {
+                                                new_addr_type prefetch_candidate = base + (stride * distance);
+                                                candidates.emplace_back(prefetch_candidate);
+                                        }
+                                }
                         }
                 }
                 else if(this->in_PerCTA(d.CTA_ID, d.PC) && !this->in_Dist(d.PC))
                 {
-                        // Calculate the stride
+                        // We have seen this CTA and this PC before but we haven't calculated the stride yet
+
                         PerCTA_entry_t prev_entry = this->PerCTA_table[d.CTA_ID][d.PC];
+                        this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
 
                         // Sort the addresses and find the smaller vector
                         std::sort(prev_entry.base_addresses.begin(), prev_entry.base_addresses.end());
@@ -218,29 +220,35 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         // Only update the Dist table and generate prefetch candidates if there is a single stride
                         if(strides.size() == 1)
                         {
-                                // TODO: Complete
                                 this->Dist_table.insert(std::make_pair(d.PC, Dist_entry_t(*strides.begin(), cycle)));
 
                                 // Compute the prefetch candidates
                                 long long int stride = this->Dist_table[d.PC].stride;
-                                for(std::pair<const unsigned int, std::map<unsigned int, PerCTA_entry_t>>& p: PerCTA_table)
+
+                                // At this point we haven't issued prefetch requests for other CTAs as we don't have the stride. Therefore, issue for all CTAs
+                                for(const auto& p: PerCTA_table)
                                 {
-                                        if(p.first == d.CTA_ID)
+                                        if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
                                         {
                                                 for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
                                                 {
                                                         int           distance           = idx - d.Warp_ID;
-                                                        new_addr_type prefetch_candidate = stride * distance;
                                                         if(distance != 0)
-                                                                candidates.emplace_back(prefetch_candidate);
+                                                        {
+                                                                for(new_addr_type base: it->second.base_addresses)
+                                                                {
+                                                                        new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                        candidates.emplace_back(prefetch_candidate);
+                                                                }
+                                                        }
                                                 }
                                         }
-                                        else
+                                        else // Prefetching for other CTAs
                                         {
                                                 auto it = p.second.find(d.PC);
                                                 if(it != p.second.end())
                                                 {
-                                                        for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
+                                                        for(unsigned int idx = (((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
                                                         {
                                                                 int distance = idx - it->second.leading_warp_id;
                                                                 if(distance != 0)
@@ -254,23 +262,14 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                         }
                                                 }
                                         }
-                                        continue;
                                 }
-
-                                // for(unsigned int idx = ((d.CTA_ID - 1)*this->num_warps_per_CTA); idx < (d.CTA_ID * this->num_warps_per_CTA); idx++)
-                                // {
-                                //         long long int stride = this->Dist_table[d.PC].stride;
-                                //         int distance = idx - d.Warp_ID;
-                                //         long long prefetch_candidate = stride * distance;
-                                //         if(distance != 0)
-                                //                 candidates.insert(prefetch_candidate);
-                                // }
                         }
                 }
                 else if(this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
                 {
                         // Calculate the stride
                         PerCTA_entry_t prev_entry = this->PerCTA_table[d.CTA_ID][d.PC];
+                        this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
 
                         // Sort the addresses and find the smaller vector
                         std::sort(prev_entry.base_addresses.begin(), prev_entry.base_addresses.end());
@@ -293,25 +292,50 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         else if(*strides.begin() != this->Dist_table[d.PC].stride)
                                 this->Dist_table[d.PC].misprediction_counter++;
 
-                        // TODO: Complete
-                        if(d.Warp_ID == prev_entry.leading_warp_id)
+                        if(d.Warp_ID == prev_entry.leading_warp_id) // This is the second iteration of the same PC from the same CTA
                         {
-                                if(std::find(prev_entry.base_addresses.begin(), prev_entry.base_addresses.end(), d.base_addresses[0]) == prev_entry.base_addresses.end())
+                                if(prev_entry.base_addresses != coalesced_addresses) // New set of base address found
                                 {
+                                        // Update the PerCTA entry to reflect new base addresses
+                                        this->PerCTA_table[d.CTA_ID][d.PC].base_addresses = coalesced_addresses;
+                                        this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
+
                                         if(this->Dist_table[d.PC].misprediction_counter < 128)
                                         {
-                                                prev_entry.base_addresses = d.base_addresses;
-                                                long long int stride      = this->Dist_table[d.PC].stride;
-                                                for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
+                                                for(const auto& p: PerCTA_table)
                                                 {
-                                                        int       distance           = idx - d.Warp_ID;
-                                                        long long prefetch_candidate = stride * distance;
-                                                        if(distance != 0)
+                                                        if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
                                                         {
-                                                                for(new_addr_type base: prev_entry.base_addresses)
+                                                                for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
                                                                 {
-                                                                        new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                        candidates.emplace_back(prefetch_candidate);
+                                                                        int distance = idx - d.Warp_ID;
+                                                                        if(distance != 0)
+                                                                        {
+                                                                                for(new_addr_type base: it->second.base_addresses)
+                                                                                {
+                                                                                        new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                                        candidates.emplace_back(prefetch_candidate);
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                        else // Prefetching for other CTAs
+                                                        {
+                                                                auto it = p.second.find(d.PC);
+                                                                if(it != p.second.end())
+                                                                {
+                                                                        for(unsigned int idx = (((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
+                                                                        {
+                                                                                int distance = idx - it->second.leading_warp_id;
+                                                                                if(distance != 0)
+                                                                                {
+                                                                                        for(new_addr_type base: it->second.base_addresses)
+                                                                                        {
+                                                                                                new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                                                candidates.emplace_back(prefetch_candidate);
+                                                                                        }
+                                                                                }
+                                                                        }
                                                                 }
                                                         }
                                                 }
