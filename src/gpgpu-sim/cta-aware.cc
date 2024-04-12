@@ -30,18 +30,14 @@ bool CTA_Aware::CTA_Aware_Prefetcher::in_PerCTA(const unsigned int CTA_ID, const
         return (pc_map.find(PC) != pc_map.end());
 }
 
-//TODO: confirm the behaviour
 /*
- * Returns the size of the PerCTA Table
+ * Returns the number of enteries for the given CTA in the PerCTA Table
  */
 std::size_t CTA_Aware::CTA_Aware_Prefetcher::size_of_PerCTA(unsigned int CTA_ID) const
 {
-        // TODO: Verify correctness
-        // std::size_t total_entries = 0;
-
-        // for(const std::pair<const unsigned int, std::map<unsigned int, PerCTA_entry_t>>& entry: this->PerCTA_table)
-        //         total_entries += entry.second.size();
         auto entry = PerCTA_table.find(CTA_ID);
+        if(entry == PerCTA_table.end()
+                return 0;
         return entry->second.size();
 }
 

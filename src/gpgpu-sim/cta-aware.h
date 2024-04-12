@@ -103,14 +103,14 @@ namespace CTA_Aware
 
                         std::vector<new_addr_type> get_coalesced_addresses(const std::vector<new_addr_type>&& addrs) const;
 
-                        bool                       in_PerCTA(const unsigned int CTA_ID, const unsigned int PC) const;
-                        std::size_t                size_of_PerCTA(unsigned CTA_ID) const;
-                        void                       insert_in_PerCTA(unsigned int CTA_ID, unsigned int PC, PerCTA_entry_t&& entry);
+                        bool                       in_PerCTA(const unsigned int CTA_ID, const unsigned int PC) const;              // Checks whether there is an entry for CTA_ID and PC in the PerCTA table
+                        std::size_t                size_of_PerCTA(unsigned CTA_ID) const;                                          // Returns the number of PCs for a CTA in the PerCTA table
+                        void                       insert_in_PerCTA(unsigned int CTA_ID, unsigned int PC, PerCTA_entry_t&& entry); // Inserts an entry for a given CTA and PC in the PerCTA table
                         void                       print_PerCTA_table() const;
 
-                        bool                       in_Dist(unsigned int PC) const;
-                        std::size_t                size_of_Dist() const;
-                        void                       insert_in_Dist(unsigned int PC, Dist_entry_t&& entry);
+                        bool                       in_Dist(unsigned int PC) const;                        // Checks whether there is an entry for a PC in the Dist table
+                        std::size_t                size_of_Dist() const;                                  // Returns the size of the Dist table
+                        void                       insert_in_Dist(unsigned int PC, Dist_entry_t&& entry); // Inserts an entry for a given PC in the Dist table
                         void                       print_Dist_table() const;
 
                 public:
