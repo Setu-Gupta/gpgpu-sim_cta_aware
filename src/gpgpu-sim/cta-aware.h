@@ -110,6 +110,8 @@ namespace CTA_Aware
                         std::size_t                                                    size_of_Dist() const;
                         void                                                           insert_in_PerCTA(unsigned int CTA_ID, unsigned int PC, PerCTA_entry_t&& entry);
                         void                                                           insert_in_Dist(unsigned int PC, Dist_entry_t&& entry);
+                        void                                                           print_PerCTA_table();
+                        void                                                           print_Dist_table();
 
                 public:
                         const unsigned int       INVALID = UINT_MAX;

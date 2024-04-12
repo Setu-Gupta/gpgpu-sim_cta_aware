@@ -9,7 +9,7 @@ std::vector<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::get_coalesced_addres
         std::set<new_addr_type> coalesced_addresses;
         for(const new_addr_type& a: addrs) // Executed once for each active thread in a warp
         {
-                new_addr_type masked_addr = a & ~((1ULL << 5) - 1);
+                new_addr_type masked_addr = a & ~((1ULL << 8) - 1);
                 coalesced_addresses.insert(masked_addr);
         }
 
@@ -85,7 +85,7 @@ void CTA_Aware::CTA_Aware_Prefetcher::insert_in_PerCTA(unsigned int CTA_ID, unsi
                                 evicted = it->first;
                         }
                 }
-                assert(evicted!=0);
+                assert(evicted != 0);
                 PerCTA_table[CTA_ID].erase(evicted);
        }
 }
@@ -109,7 +109,7 @@ void CTA_Aware::CTA_Aware_Prefetcher::insert_in_Dist(unsigned int PC, CTA_Aware:
                                 evicted = it->first;
                         }
                 }
-                assert(evicted!=0);
+                assert(evicted != 0);
                 Dist_table.erase(evicted);
        }
 }
@@ -157,6 +157,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                 {
                         // This is the first time that we've seen this CTA, PC pair
                         this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses))));
+                        this->print_PerCTA_table();
                 }
                 else if(!this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
                 {
@@ -303,4 +304,28 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                 }
         }
         return candidates;
+}
+
+void CTA_Aware::CTA_Aware_Prefetcher::print_PerCTA_table()
+{
+          for (const auto& outer_pair : this->PerCTA_table) {
+                  std::cout << "CTA_ID: " << outer_pair.first << std::endl;
+                  for (const auto& inner_pair : outer_pair.second) {
+                          std::cout << "  PC: " << inner_pair.first << " Warp_ID: " << inner_pair.second.leading_warp_id << " Cycle: " << inner_pair.second.cycle << std::endl;
+                          std::cout << "  Address: ";
+                          for(const auto& base : inner_pair.second.base_addresses)
+                          {
+                                  std::cout << base << " ";
+                          }
+                          std::cout << std::endl;
+                  }
+          }
+}
+
+void CTA_Aware::CTA_Aware_Prefetcher::print_Dist_table()
+{
+        for (const auto& outer_pair : this->Dist_table) {
+                std::cout << "PC: " << outer_pair.first << std::endl;
+                std::cout << "Delta: " << outer_pair.second.stride << "m_counter: " << outer_pair.second.misprediction_counter << std::endl;
+       }
 }
