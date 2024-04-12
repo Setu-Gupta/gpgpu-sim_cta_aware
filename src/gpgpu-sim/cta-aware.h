@@ -28,13 +28,13 @@ namespace CTA_Aware
                 std::vector<new_addr_type> base_addresses;  // There can be up to (some may be inactive) 32 addresses but after
                                                             // coalescing only VARIATION number should be left. Otherwise an entry would not be allocated
 
-                PerCTA_entry_t(): leading_warp_id(std::numeric_limits<unsigned int>::max()), cycle(0)
+                PerCTA_entry_t(): cycle(0), leading_warp_id(std::numeric_limits<unsigned int>::max())
                 {
                         this->base_addresses.clear();
                 }
 
                 PerCTA_entry_t(unsigned int wid, std::vector<new_addr_type>&& ba, unsigned long long c):
-                        leading_warp_id(wid), base_addresses(std:move(ba)), cycle(c)
+                        cycle(c), leading_warp_id(wid), base_addresses(std::move(ba))
                 {}
 
                 PerCTA_entry_t(const PerCTA_entry_t& other)
@@ -101,7 +101,7 @@ namespace CTA_Aware
                         std::map<unsigned int, Dist_entry_t>                           Dist_table;            // Index = Program Counter, Limited to MAX_DIST_TABLE_SIZE entries
                         unsigned int                                                   last_serviced_warp_id; // Warp ID of the most recently serviced prefetch
 
-                        std::vector<new_addr_type> get_coalesced_addresses(const std::vector<new_addr_type>& addrs) const;
+                        std::vector<new_addr_type> get_coalesced_addresses(const std::vector<new_addr_type>&& addrs) const;
 
                         bool                       in_PerCTA(const unsigned int CTA_ID, const unsigned int PC) const;
                         std::size_t                size_of_PerCTA(unsigned CTA_ID) const;
@@ -117,8 +117,8 @@ namespace CTA_Aware
                         const unsigned int INVALID = std::numeric_limits<unsigned int>::max();
 
                         void         mark_request_serviced(unsigned int warp_id); // called by LDST Unit. Sets the Warp ID for the warp which got its prefetch request serviced
-                        unsigned int get_warp_id() const; // Called by SM. Returns the Warp ID of the warp for which the prefetch request was serviced most recently. After returning the
-                                                          // value, the last_serviced_warp_id is reset to INVALID
+                        unsigned int get_warp_id(); // Called by SM. Returns the Warp ID of the warp for which the prefetch request was serviced most recently. After returning the
+                                                    // value, the last_serviced_warp_id is reset to INVALID
 
                         std::list<new_addr_type> generate_prefetch_candidates(std::list<CTA_data_t> data, unsigned long long cycle); // Called by LDST. Returns a list of prefetch candidates
 

@@ -53,9 +53,9 @@ void CTA_Aware::CTA_Aware_Prefetcher::insert_in_PerCTA(unsigned int CTA_ID, unsi
         PerCTA_table[CTA_ID][PC] = entry;
         if(size_of_PerCTA(CTA_ID) > MAX_CTA_TABLE_SIZE)
         {
-                auto         entry   = PerCTA_table.find(CTA_ID);
-                long long    lru     = std::numeric_limits<long long>::max();
-                unsigned int evicted = 0;
+                auto               entry   = PerCTA_table.find(CTA_ID);
+                unsigned long long lru     = std::numeric_limits<unsigned long long>::max();
+                unsigned int       evicted = 0;
                 for(auto it = entry->second.begin(); it != entry->second.end(); it++)
                 {
                         if(it->second.cycle < lru)
@@ -112,8 +112,8 @@ void CTA_Aware::CTA_Aware_Prefetcher::insert_in_Dist(unsigned int PC, CTA_Aware:
         Dist_table[PC] = entry;
         if(size_of_Dist() > MAX_DIST_TABLE_SIZE)
         {
-                long long lru     = std::numeric_limits<long long>::max();
-                unsigned  evicted = 0;
+                unsigned long long lru     = std::numeric_limits< unsigned long long>::max();
+                unsigned           evicted = 0;
                 for(auto it = Dist_table.begin(); it != Dist_table.end(); it++)
                 {
                         if(it->second.cycle < lru)
@@ -180,13 +180,13 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                 if(!this->in_PerCTA(d.CTA_ID, d.PC) && !this->in_Dist(d.PC))
                 {
                         // This is the first time that we've seen this CTA, PC pair
-                        this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses))));
+                        this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses), cycle)));
                         this->print_PerCTA_table();
                 }
                 else if(!this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
                 {
                         // This is the second instance of this PC indicating a repeated warp of the same CTA. Calculate stride
-                        this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses))));
+                        this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses), cycle)));
 
                         // Compute the prefetch candidates
                         for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
@@ -223,7 +223,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         if(strides.size() == 1)
                         {
                                 // TODO: Complete
-                                this->Dist_table.insert(std::make_pair(d.PC, Dist_entry_t(*strides.begin())));
+                                this->Dist_table.insert(std::make_pair(d.PC, Dist_entry_t(*strides.begin(), cycle)));
 
                                 // Compute the prefetch candidates
                                 long long int stride = this->Dist_table[d.PC].stride;
