@@ -58,11 +58,13 @@ namespace CTA_Aware
                 unsigned long long cycle;                 // Track the cycle at which this entry was last touched for LRU replacement
                 long long int      stride;                // The computed stride
                 unsigned int       misprediction_counter; // Limited to MISPRED_THRESH
+                unsigned int       correct_counter; 
+                long long int      expected_stride;       // The computed stride
 
-                Dist_entry_t(): cycle(0), stride(0), misprediction_counter(0) {}
+                Dist_entry_t(): cycle(0), stride(0), misprediction_counter(0), correct_counter(0), expected_stride(-1) {}
 
                 Dist_entry_t(long long int stride, unsigned long long c):
-                        cycle(0), stride(stride), misprediction_counter(0)
+                        cycle(0), stride(stride), misprediction_counter(0), correct_counter(0), expected_stride(-1)
                 {}
 
                 Dist_entry_t(const Dist_entry_t& other)
@@ -70,6 +72,8 @@ namespace CTA_Aware
                         this->cycle                 = other.cycle;
                         this->stride                = other.stride;
                         this->misprediction_counter = other.misprediction_counter;
+                        this->correct_counter       = other.correct_counter;
+                        this->expected_stride       = other.expected_stride;
                 }
 
                 Dist_entry_t& operator=(Dist_entry_t& other)
@@ -77,6 +81,8 @@ namespace CTA_Aware
                         this->cycle                 = other.cycle;
                         this->stride                = other.stride;
                         this->misprediction_counter = other.misprediction_counter;
+                        this->correct_counter       = other.correct_counter;
+                        this->expected_stride       = other.expected_stride;
                         return *this;
                 }
         };
