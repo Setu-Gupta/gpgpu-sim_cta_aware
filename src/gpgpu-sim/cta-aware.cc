@@ -132,7 +132,10 @@ void CTA_Aware::CTA_Aware_Prefetcher::print_Dist_table() const
         for(const auto& outer_pair: this->Dist_table)
         {
                 std::cout << "Shader_ID: " << shader_id << "  PC: " << outer_pair.first ;
-                std::cout << "  Delta: " << outer_pair.second.stride << " m_counter: " << outer_pair.second.misprediction_counter << std::endl;
+                std::cout << "  Delta: " << outer_pair.second.stride << " m_counter: " << outer_pair.second.misprediction_counter << " c_counter: " << outer_pair.second.correct_counter;
+                if(outer_pair.second.misprediction_counter)
+                        std::cout << " expected Delta " << outer_pair.second.expected_stride;
+                std::cout << std::endl;
         }
 }
 
@@ -188,6 +191,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                         for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
                                         {
                                                 new_addr_type prefetch_candidate = base + (stride * distance);
+                                                std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << std::endl;
                                                 candidates.emplace_back(prefetch_candidate);
                                         }
                                 }
@@ -238,6 +242,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                 for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
                                                                 {
                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                        std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << std::endl;
                                                                         candidates.emplace_back(prefetch_candidate);
                                                                 }
                                                         }
@@ -290,8 +295,11 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         this->print_Dist_table();
                         if(strides.size() > 1 || strides.size() == 0)
                                 this->Dist_table[d.PC].misprediction_counter++;
-                        else if(*strides.begin() != this->Dist_table[d.PC].stride)
+                        else if(*strides.begin() != this->Dist_table[d.PC].stride){
                                 this->Dist_table[d.PC].misprediction_counter++;
+                                this->Dist_table[d.PC].expected_stride = *strides.begin();
+                        } else if(*strides.begin() == this->Dist_table[d.PC].stride)
+                                this->Dist_table[d.PC].correct_counter++;
 
                         if(d.Warp_ID == prev_entry.leading_warp_id) // This is the second iteration of the same PC from the same CTA
                         {
@@ -318,6 +326,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                                 for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
                                                                                 {
                                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                                        std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << std::endl;
                                                                                         candidates.emplace_back(prefetch_candidate);
                                                                                 }
                                                                         }
@@ -348,5 +357,13 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         }
                 }
         }
+        
+        if(!candidates.empty()) { // Debugging
+                std::cout << "Shader_ID: " << shader_id << "  Prefetching address:  ";
+                for(auto &prefetch_addr: candidates)
+                        std::cout<< prefetch_addr << "  ";
+                std::cout << "\n";
+        }
+
         return candidates;
 }
