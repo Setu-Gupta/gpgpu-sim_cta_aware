@@ -132,7 +132,7 @@ void CTA_Aware::CTA_Aware_Prefetcher::print_Dist_table() const
         for(const auto& outer_pair: this->Dist_table)
         {
                 std::cout << "PC: " << outer_pair.first << std::endl;
-                std::cout << "Delta: " << outer_pair.second.stride << "m_counter: " << outer_pair.second.misprediction_counter << std::endl;
+                std::cout << "Delta: " << outer_pair.second.stride << " m_counter: " << outer_pair.second.misprediction_counter << std::endl;
         }
 }
 
@@ -171,16 +171,16 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                 {
                         // This is the first time that we've seen this CTA, PC pair
                         this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses), cycle)));
-                        // this->print_PerCTA_table();
+                        this->print_PerCTA_table();
                 }
                 else if(!this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
                 {
                         // This is the second instance of this PC indicating a repeated warp of the same CTA. Calculate stride
                         this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses), cycle)));
-
+                        this->print_PerCTA_table();
                         // Compute the prefetch candidates
                         long long int stride = this->Dist_table[d.PC].stride;
-                        for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
+                        for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
                         {
                                 int distance = idx - d.Warp_ID;
                                 if(distance != 0)
@@ -208,19 +208,20 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         if(num_addr == 0)
                                 continue;
 
+                        int difference = d.Warp_ID - prev_entry.leading_warp_id;
                         std::set<long long int> strides;
                         for(std::size_t i = 0; i < num_addr; i++)
                         {
                                 long long int stride = coalesced_addresses.at(i) - prev_entry.base_addresses.at(i);
-                                if(stride != 0)
-                                        strides.insert(stride);
+                                if(stride != 0 && difference != 0)
+                                        strides.insert(stride/difference);
                         }
 
                         // Only update the Dist table and generate prefetch candidates if there is a single stride
                         if(strides.size() == 1)
                         {
                                 this->Dist_table.insert(std::make_pair(d.PC, Dist_entry_t(*strides.begin(), cycle)));
-
+                                this->print_Dist_table();
                                 // Compute the prefetch candidates
                                 long long int stride = this->Dist_table[d.PC].stride;
 
@@ -229,7 +230,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                 {
                                         if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
                                         {
-                                                for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
+                                                for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
                                                 {
                                                         int distance = idx - d.Warp_ID;
                                                         if(distance != 0)
@@ -278,14 +279,15 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         if(num_addr == 0)
                                 continue;
 
+                        int difference = d.Warp_ID - prev_entry.leading_warp_id;
                         std::set<long long int> strides;
                         for(std::size_t i = 0; i < num_addr; i++)
                         {
                                 long long int stride = coalesced_addresses.at(i) - prev_entry.base_addresses.at(i);
-                                if(stride != 0)
-                                        strides.insert(stride);
+                                if(stride != 0 && difference != 0)
+                                        strides.insert(stride/difference);
                         }
-
+                        this->print_Dist_table();
                         if(strides.size() > 1 || strides.size() == 0)
                                 this->Dist_table[d.PC].misprediction_counter++;
                         else if(*strides.begin() != this->Dist_table[d.PC].stride)
@@ -308,7 +310,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                 {
                                                         if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
                                                         {
-                                                                for(unsigned int idx = ((d.CTA_ID - 1) * d.num_warps); idx < (d.CTA_ID * d.num_warps); idx++)
+                                                                for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
                                                                 {
                                                                         int distance = idx - d.Warp_ID;
                                                                         if(distance != 0)

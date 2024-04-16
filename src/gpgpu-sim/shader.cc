@@ -2304,7 +2304,7 @@ void ldst_unit::L1_latency_queue_cycle()
                         mem_fetch*                mf_next = l1_latency_queue[j][0];
                         std::list<cache_event>    events;
                         unsigned ctaid = (this->m_core)->getCTAId(mf_next->get_inst().warp_id());
-                        //unsigned sid = m_sid;
+                        unsigned sid = m_sid;
                         unsigned kernelid = (this->m_core)->get_kernel()->get_uid();
                         unsigned s_warpsize;
                         std::vector<new_addr_type> s_thread_address = mf_next->get_inst().get_first_valid_addr();
