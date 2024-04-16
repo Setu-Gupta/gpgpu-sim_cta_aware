@@ -1,5 +1,8 @@
 #include "cta-aware.h"
 
+
+#define REMOVE_WHEN_misprediction_counter_IS_128 false
+
 /*
  * Coalesces addresses and returns a set
  */
@@ -304,6 +307,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                         } else if(*strides.begin() == this->Dist_table[d.PC].stride)
                                 this->Dist_table[d.PC].correct_counter++;
 
+
                         if(d.Warp_ID == prev_entry.leading_warp_id) // This is the second iteration of the same PC from the same CTA
                         {
                                 if(prev_entry.base_addresses != coalesced_addresses) // New set of base address found
@@ -357,6 +361,13 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                 }
                                         }
                                 }
+                        }
+                
+                        if(this->Dist_table[d.PC].misprediction_counter >= MISPRED_THRESH && REMOVE_WHEN_misprediction_counter_IS_128) {
+                                // Remove the entry from the Dist table
+                                std::cout << "Shader_ID: " << shader_id << "  Removing entry from Dist table for PC: " << d.PC << " delta : " << this->Dist_table[d.PC].stride;
+                                this->Dist_table.erase(d.PC);
+                                this->print_Dist_table();
                         }
                 }
         }
