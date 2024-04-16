@@ -72,10 +72,10 @@ void CTA_Aware::CTA_Aware_Prefetcher::print_PerCTA_table() const
 {
         for(const auto& outer_pair: this->PerCTA_table)
         {
-                std::cout << "CTA_ID: " << outer_pair.first << std::endl;
+                std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << outer_pair.first ;
                 for(const auto& inner_pair: outer_pair.second)
                 {
-                        std::cout << "  PC: " << inner_pair.first << " Warp_ID: " << inner_pair.second.leading_warp_id << " Cycle: " << inner_pair.second.cycle << std::endl;
+                        std::cout << "  PC: " << inner_pair.first << " Warp_ID: " << inner_pair.second.leading_warp_id << " Cycle: " << inner_pair.second.cycle ;
                         std::cout << "  Address: ";
                         for(const auto& base: inner_pair.second.base_addresses)
                                 std::cout << base << " ";
@@ -131,8 +131,8 @@ void CTA_Aware::CTA_Aware_Prefetcher::print_Dist_table() const
 {
         for(const auto& outer_pair: this->Dist_table)
         {
-                std::cout << "PC: " << outer_pair.first << std::endl;
-                std::cout << "Delta: " << outer_pair.second.stride << " m_counter: " << outer_pair.second.misprediction_counter << std::endl;
+                std::cout << "Shader_ID: " << shader_id << "  PC: " << outer_pair.first ;
+                std::cout << "  Delta: " << outer_pair.second.stride << " m_counter: " << outer_pair.second.misprediction_counter << std::endl;
         }
 }
 

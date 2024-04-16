@@ -97,6 +97,7 @@ namespace CTA_Aware
         class CTA_Aware_Prefetcher
         {
                 private:
+                        unsigned                                                       shader_id;             // The ID of the shader
                         std::map<unsigned int, std::map<unsigned int, PerCTA_entry_t>> PerCTA_table;          // Index 1 = CTA ID, Index 2 = Program Counter. Limited to MAX_CTA_TABLE_SIZE entries
                         std::map<unsigned int, Dist_entry_t>                           Dist_table;            // Index = Program Counter, Limited to MAX_DIST_TABLE_SIZE entries
                         unsigned int                                                   last_serviced_warp_id; // Warp ID of the most recently serviced prefetch
@@ -123,6 +124,7 @@ namespace CTA_Aware
                         std::list<new_addr_type> generate_prefetch_candidates(std::list<CTA_data_t> data, unsigned long long cycle); // Called by LDST. Returns a list of prefetch candidates
 
                         CTA_Aware_Prefetcher(): last_serviced_warp_id(INVALID) {}
+                        CTA_Aware_Prefetcher(unsigned shader_id): last_serviced_warp_id(INVALID), shader_id(shader_id) {}
         };
 } // namespace CTA_Aware
 
