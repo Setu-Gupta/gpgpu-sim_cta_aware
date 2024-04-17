@@ -94,9 +94,12 @@ namespace CTA_Aware
                 new_addr_type              PC;             // The PC value which is associated with base_addresses
                 unsigned int               Warp_ID;        // All Warp IDs are unique across the SM, i.e. no two CTAs can have a warp with the same ID
                 std::vector<new_addr_type> base_addresses; // Memory addresses for all threads in the warp
+                const active_mask_t active_mask;
+                const mem_access_byte_mask_t byte_mask;
 
-                CTA_data_t(const unsigned int n_warps, unsigned int ctaid, const new_addr_type pc, const unsigned int wid, const std::vector<new_addr_type>&& ba):
-                        num_warps(n_warps), CTA_ID(ctaid), PC(pc), Warp_ID(wid), base_addresses(std::move(ba))
+                CTA_data_t(const unsigned int n_warps, unsigned int ctaid, const new_addr_type pc, const unsigned int wid, const std::vector<new_addr_type>&& ba, const active_mask_t active_mask,
+                const mem_access_byte_mask_t byte_mask):
+                        num_warps(n_warps), CTA_ID(ctaid), PC(pc), Warp_ID(wid), base_addresses(std::move(ba)), active_mask(active_mask), byte_mask(byte_mask)
                 {}
         };
 
@@ -122,12 +125,13 @@ namespace CTA_Aware
 
                 public:
                         const unsigned int INVALID = std::numeric_limits<unsigned int>::max();
+                        std::list<std::pair<new_addr_type, unsigned int>> prefetch_requests;
 
                         void         mark_request_serviced(unsigned int warp_id); // called by LDST Unit. Sets the Warp ID for the warp which got its prefetch request serviced
                         unsigned int get_warp_id(); // Called by SM. Returns the Warp ID of the warp for which the prefetch request was serviced most recently. After returning the
                                                     // value, the last_serviced_warp_id is reset to INVALID
 
-                        std::list<new_addr_type> generate_prefetch_candidates(std::list<CTA_data_t> data, unsigned long long cycle); // Called by LDST. Returns a list of prefetch candidates
+                        void generate_prefetch_candidates(std::list<CTA_data_t> data, unsigned long long cycle); // Called by LDST. Returns a list of prefetch candidates
 
                         CTA_Aware_Prefetcher(): last_serviced_warp_id(INVALID) {}
                         CTA_Aware_Prefetcher(unsigned shader_id): last_serviced_warp_id(INVALID), shader_id(shader_id) {}

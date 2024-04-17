@@ -826,12 +826,18 @@ class mem_access_t {
     m_req_size = size;
     m_write = wr;
   }
-  mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
-               bool wr) {
+  mem_access_t(mem_access_type type, new_addr_type address, unsigned wid, unsigned size,
+               bool wr, const active_mask_t &active_mask,
+               const mem_access_byte_mask_t &byte_mask,
+               const mem_access_sector_mask_t &sector_mask) 
+      : m_warp_mask(active_mask),
+        m_byte_mask(byte_mask),
+        m_sector_mask(sector_mask){
     m_type = type;
     m_addr = address;
     m_req_size = size;
     m_write = wr;
+    m_warpid = wid;
   }
 
   new_addr_type get_addr() const { return m_addr; }
@@ -893,6 +899,7 @@ class mem_access_t {
   active_mask_t m_warp_mask;
   mem_access_byte_mask_t m_byte_mask;
   mem_access_sector_mask_t m_sector_mask;
+  unsigned m_warpid;
 };
 
 class mem_fetch;

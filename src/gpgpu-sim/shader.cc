@@ -49,6 +49,7 @@
 #include <float.h>
 #include <limits.h>
 #include <string.h>
+#include <algorithm>
 
 #define PRIORITIZE_MSHR_OVER_WB 1
 #define MAX(a, b)               (((a) > (b)) ? (a) : (b))
@@ -2297,6 +2298,15 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(l1_cache* ca
 
 void ldst_unit::L1_latency_queue_cycle()
 {
+        if(l1_latency_queue[0][0] != NULL)
+        {
+                std::vector<new_addr_type> s_thread_address = l1_latency_queue[0][0]->get_inst().get_first_valid_addr();
+                std::list<CTA_Aware::CTA_data_t> d;
+                unsigned ctaid = (this->m_core)->getCTAId(l1_latency_queue[0][0]->get_inst().warp_id());
+                CTA_Aware::CTA_data_t data((this->m_core)->get_kernel()->threads_per_cta() / m_config->warp_size, ctaid, l1_latency_queue[0][0]->get_inst().pc, l1_latency_queue[0][0]->get_inst().warp_id(), std::move(s_thread_address), l1_latency_queue[0][0]->get_access_warp_mask(), l1_latency_queue[0][0]->get_access_byte_mask());
+                d.emplace_back(data);
+                m_core->get_prefetcher()->generate_prefetch_candidates( d, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
+        }
         for(unsigned int j = 0; j < m_config->m_L1D_config.l1_banks; j++)
         {
                 if((l1_latency_queue[j][0]) != NULL)
@@ -2307,49 +2317,30 @@ void ldst_unit::L1_latency_queue_cycle()
                         unsigned sid = m_sid;
                         unsigned kernelid = (this->m_core)->get_kernel()->get_uid();
                         unsigned s_warpsize;
-                        std::vector<new_addr_type> s_thread_address = mf_next->get_inst().get_first_valid_addr();
+                        
+                        //std::vector<new_addr_type> s_thread_address = mf_next->get_inst().get_first_valid_addr();
                         //TODO cta-aware should get its imputs here.
-                        std::list<CTA_Aware::CTA_data_t> d;
-                        CTA_Aware::CTA_data_t data((this->m_core)->get_kernel()->threads_per_cta() / m_config->warp_size, ctaid, mf_next->get_inst().pc, mf_next->get_inst().warp_id(), std::move(s_thread_address));
-                        d.emplace_back(data);
-                        if(mf_next->get_inst().is_load())
+                        // std::list<CTA_Aware::CTA_data_t> d;
+                        // CTA_Aware::CTA_data_t data((this->m_core)->get_kernel()->threads_per_cta() / m_config->warp_size, ctaid, mf_next->get_inst().pc, mf_next->get_inst().warp_id(), std::move(s_thread_address), mf_next->get_access_warp_mask(), mf_next->get_access_byte_mask());
+                        // d.emplace_back(data);
+                        enum cache_request_status status = m_L1D->access(mf_next->get_addr(), mf_next, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle, events);
+                        if(mf_next->get_inst().is_load() && status != RESERVATION_FAIL)
                         {
-                                std::list<new_addr_type> prefetch_requests = m_core->get_prefetcher()->generate_prefetch_candidates( d, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
-                                std::list<new_addr_type> temp_list;
-                                for(auto& req :prefetch_requests)
-                                {
-                                        mem_access_t* access =  new mem_access_t(GLOBAL_ACC_R, req, 32, false);
-                                        mem_access_sector_mask_t sector_mask;
-                                        sector_mask.reset();
-                                        sector_mask.set(req % 128 / 32);
-                                        mem_fetch *mf = m_mf_allocator->alloc(access->get_addr(),access->get_type(), mf_next->get_access_warp_mask(), mf_next->get_access_byte_mask(), sector_mask, access->get_size(), false, m_core->get_gpu()->gpu_sim_cycle +
-                                        m_core->get_gpu()->gpu_tot_sim_cycle, data.Warp_ID, m_sid);
-                                        std::list<cache_event> prefetch_events;
-                                        mf->set_prefetch_flag();
-                                        enum cache_request_status prefetch_status = m_L1D->access(mf->get_addr(),mf,m_core->get_gpu()->gpu_sim_cycle +
-                                        m_core->get_gpu()->gpu_tot_sim_cycle,prefetch_events);
-                                        bool s_write_sent = was_write_sent(prefetch_events);
-                                        if (s_write_sent) {
-                                                unsigned inc_ack = (m_config->m_L1D_config.get_mshr_type() == SECTOR_ASSOC)
-                                                                ? (mf->get_data_size() / SECTOR_SIZE)
-                                                                : 1;
-
-                                                for (unsigned i = 0; i < inc_ack; ++i)
-                                                m_core->inc_store_req(data.Warp_ID);
-                                        }
-                                        if(prefetch_status != RESERVATION_FAIL)
-                                        {
-                                        temp_list.push_back(req);  
-                                        }
-                                }
-                                for(auto& temp : temp_list)
-                                {
-                                        prefetch_requests.remove(temp);
-                                }
-                                temp_list.clear();  
+                                //prefetch_requests = m_core->get_prefetcher()->generate_prefetch_candidates( d, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
+                                //std::list<new_addr_type> temp_list;
+                                // for(auto& req :prefetch_requests)
+                                // {
+                                
+                                        
+                                //}
+                                // for(auto& temp : temp_list)
+                                // {
+                                //         prefetch_requests.remove(temp);
+                                // }
+                                // temp_list.clear();  
                         }
                         
-                        enum cache_request_status status = m_L1D->access(mf_next->get_addr(), mf_next, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle, events);
+                        //enum cache_request_status status = m_L1D->access(mf_next->get_addr(), mf_next, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle, events);
 
                         bool write_sent = was_write_sent(events);
                         bool read_sent  = was_read_sent(events);
@@ -2425,6 +2416,61 @@ void ldst_unit::L1_latency_queue_cycle()
                                 l1_latency_queue[j][stage]     = l1_latency_queue[j][stage + 1];
                                 l1_latency_queue[j][stage + 1] = NULL;
                         }
+        }
+
+        // Try to issue prefetch requests
+        if(!m_core->get_prefetcher()->prefetch_requests.empty() && l1_latency_queue[0][0] != NULL)
+        {
+                std::list<unsigned int> used_banks;
+                std::list<std::pair<new_addr_type, unsigned int>> consumed_addrs;
+                for(std::pair<new_addr_type, unsigned int>& a: m_core->get_prefetcher()->prefetch_requests)
+                {
+                        unsigned   bank_id = m_config->m_L1D_config.set_bank(a.first);        // Get bank ID
+                        if(used_banks.size() < m_config->m_L1D_config.l1_banks && std::none_of(used_banks.cbegin(), used_banks.cend(), [bank_id](unsigned int b){return b == bank_id;}))
+                        {
+                                // Consume this request if prefetch bandwidth is available
+                                used_banks.push_back(bank_id);
+
+                                // Issue request
+                                mem_access_sector_mask_t sector_mask;
+                                sector_mask.reset();
+                                sector_mask.set(a.first % 128 / 32);
+                                mem_access_t* access =  new mem_access_t(GLOBAL_ACC_R, a.first, a.second, 32, false, l1_latency_queue[0][0]->get_access_warp_mask(), l1_latency_queue[0][0]->get_access_byte_mask(), sector_mask);
+                                mem_fetch *mf = m_mf_allocator->alloc(access->get_addr(),access->get_type(), l1_latency_queue[0][0]->get_access_warp_mask(), l1_latency_queue[0][0]->get_access_byte_mask(), sector_mask, access->get_size(), false, m_core->get_gpu()->gpu_sim_cycle +
+                                m_core->get_gpu()->gpu_tot_sim_cycle, a.second, m_sid);
+                                std::list<cache_event> prefetch_events;
+                                mf->set_prefetch_flag();
+                                enum cache_request_status prefetch_status = m_L1D->access(mf->get_addr(), mf, m_core->get_gpu()->gpu_sim_cycle +
+                                m_core->get_gpu()->gpu_tot_sim_cycle,prefetch_events);
+                                bool s_write_sent = was_write_sent(prefetch_events);
+                                if (s_write_sent) {
+                                        unsigned inc_ack = (m_config->m_L1D_config.get_mshr_type() == SECTOR_ASSOC)
+                                                ? (mf->get_data_size() / SECTOR_SIZE)
+                                                : 1;
+                                for (unsigned i = 0; i < inc_ack; ++i)
+                                        m_core->inc_store_req(l1_latency_queue[0][0]->get_inst().warp_id());
+                                }
+                                if(prefetch_status != RESERVATION_FAIL)
+                                {
+                                        //temp_list.push_back(req);
+                                        consumed_addrs.push_back(a);
+                                }
+                        }
+                        if(consumed_addrs.size() >= m_config->m_L1D_config.l1_banks)
+                                break;
+                }
+
+                // Erase consumed requests
+                for(std::pair<new_addr_type, unsigned int>& a: consumed_addrs)
+                {
+                        decltype(m_core->get_prefetcher()->prefetch_requests)::iterator it;
+                        for(it = m_core->get_prefetcher()->prefetch_requests.begin(); it != m_core->get_prefetcher()->prefetch_requests.end(); it++)
+                        {
+                                if(*it == a)
+                                        break;
+                        }
+                        m_core->get_prefetcher()->prefetch_requests.erase(it);
+                }
         }
 }
 

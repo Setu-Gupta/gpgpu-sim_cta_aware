@@ -163,9 +163,9 @@ unsigned int CTA_Aware::CTA_Aware_Prefetcher::get_warp_id()
 /*
  * Called by the LDST unit with the uncoalesced addresses of all threads of a warp
  */
-std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_candidates(std::list<CTA_Aware::CTA_data_t> data, unsigned long long cycle)
+void CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_candidates(std::list<CTA_Aware::CTA_data_t> data, unsigned long long cycle)
 {
-        std::list<new_addr_type> candidates;
+        std::list<std::pair<new_addr_type, unsigned int>> candidates;
         for(CTA_Aware::CTA_data_t& d: data) // Executed once for each warp in the SM
         {
                 // Create a set of coalesced addresses
@@ -196,7 +196,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                 {
                                                         new_addr_type prefetch_candidate = base + (stride * distance);
                                                         std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C1" << std::endl;
-                                                        candidates.emplace_back(prefetch_candidate);
+                                                        candidates.push_back(std::make_pair(prefetch_candidate, idx));
                                                 }
                                         }
                                 }
@@ -249,7 +249,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                 {
                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
                                                                         std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C2"<< std::endl;
-                                                                        candidates.emplace_back(prefetch_candidate);
+                                                                        candidates.push_back(std::make_pair(prefetch_candidate, idx));
                                                                 }
                                                         }
                                                 }
@@ -267,7 +267,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                         for(new_addr_type base: it->second.base_addresses)
                                                                         {
                                                                                 new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                                candidates.emplace_back(prefetch_candidate);
+                                                                                candidates.push_back(std::make_pair(prefetch_candidate, idx));
                                                                         }
                                                                 }
                                                         }
@@ -334,7 +334,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                                 {
                                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
                                                                                         std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C3"<< std::endl;
-                                                                                        candidates.emplace_back(prefetch_candidate);
+                                                                                        candidates.push_back(std::make_pair(prefetch_candidate, idx));
                                                                                 }
                                                                         }
                                                                 }
@@ -352,7 +352,7 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
                                                                                         for(new_addr_type base: it->second.base_addresses)
                                                                                         {
                                                                                                 new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                                                candidates.emplace_back(prefetch_candidate);
+                                                                                                candidates.push_back(std::make_pair(prefetch_candidate, idx));
                                                                                         }
                                                                                 }
                                                                         }
@@ -375,9 +375,11 @@ std::list<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_cand
         if(!candidates.empty()) { // Debugging
                 std::cout << "Shader_ID: " << shader_id << "  Prefetching address:  ";
                 for(auto &prefetch_addr: candidates)
-                        std::cout<< prefetch_addr << "  ";
+                        std::cout<< prefetch_addr.first << "  ";
                 std::cout << "\n";
         }
-
-        return candidates;
+        for (std::pair<new_addr_type, unsigned int> it : candidates)
+        {
+           this->prefetch_requests.push_back(it);     
+        }
 }
