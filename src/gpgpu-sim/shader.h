@@ -1782,6 +1782,7 @@ class ldst_unit: public pipelined_simd_unit
                 Scoreboard*                                                                       m_scoreboard;
 
                 mem_fetch*  m_next_global;
+                mem_fetch*  mf_for_prefetch = NULL;
                 warp_inst_t m_next_wb;
                 unsigned    m_writeback_arb; // round-robin arbiter for writeback contention
                                              // between L1T, L1C, shared

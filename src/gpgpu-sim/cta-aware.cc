@@ -115,6 +115,10 @@ void CTA_Aware::CTA_Aware_Prefetcher::insert_in_Dist(unsigned int PC, CTA_Aware:
                 unsigned           evicted = 0;
                 for(auto it = Dist_table.begin(); it != Dist_table.end(); it++)
                 {
+                        if(it->second.misprediction_counter > MISPRED_THRESH){
+                                lru = 0;
+                                evicted = it->first;
+                        }
                         if(it->second.cycle < lru)
                         {
                                 lru     = it->second.cycle;
@@ -378,8 +382,10 @@ void CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_candidates(std::list<CTA
                         std::cout<< prefetch_addr.first << "  ";
                 std::cout << "\n";
         }
-        for (std::pair<new_addr_type, unsigned int> it : candidates)
-        {
-           this->prefetch_requests.push_back(it);     
+        for (std::pair<new_addr_type, unsigned int> it : candidates) {
+           auto prefetch_requests_it = std::find(this->prefetch_requests.begin(), this->prefetch_requests.end(), it);
+           if(prefetch_requests_it != this->prefetch_requests.end()) // If the prefetch request is already in the list, move it to the front
+                this->prefetch_requests.erase(prefetch_requests_it);
+           this->prefetch_requests.push_front(it); // Add the prefetch request to the front of the list to prioritize latest requests
         }
 }
