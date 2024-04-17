@@ -531,7 +531,7 @@ void memory_sub_partition::cache_cycle(unsigned cycle)
                                 bool                      read_sent  = was_read_sent(events);
                                 MEM_SUBPART_DPRINTF("Probing L2 cache Address=%llx, status=%u\n", mf->get_addr(), status);
 
-                                if(status == HIT)
+                                if(status == HIT || status == PREFETCH_HIT)
                                 {
                                         if(!write_sent)
                                         {
@@ -638,11 +638,11 @@ void memory_sub_partition::dram_L2_queue_push(class mem_fetch* mf)
         m_dram_L2_queue->push(mf);
 }
 
-void memory_sub_partition::print_cache_stat(unsigned& accesses, unsigned& misses) const
+void memory_sub_partition::print_cache_stat(unsigned& accesses, unsigned& misses, unsigned& prefetch_hit) const
 {
         FILE* fp = stdout;
         if(!m_config->m_L2_config.disabled())
-                m_L2cache->print(fp, accesses, misses);
+                m_L2cache->print(fp, accesses, misses, prefetch_hit);
 }
 
 void memory_sub_partition::print(FILE* fp) const

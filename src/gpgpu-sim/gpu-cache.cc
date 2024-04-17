@@ -40,7 +40,7 @@
 
 const char* cache_request_status_str(enum cache_request_status status)
 {
-        static const char* static_cache_request_status_str[] = {"HIT", "HIT_RESERVED", "MISS", "RESERVATION_FAIL", "SECTOR_MISS", "MSHR_HIT"};
+        static const char* static_cache_request_status_str[] = {"HIT", "PREFETCH_HIT", "HIT_RESERVED", "MISS", "RESERVATION_FAIL", "SECTOR_MISS", "MSHR_HIT"};
 
         assert(sizeof(static_cache_request_status_str) / sizeof(const char*) == NUM_CACHE_REQUEST_STATUS);
         assert(status < NUM_CACHE_REQUEST_STATUS);
@@ -214,8 +214,10 @@ void tag_array::init(int core_id, int type_id)
         m_pending_hit = 0;
         m_res_fail    = 0;
         m_sector_miss = 0;
+        m_prefetched_hit = 0;
         // initialize snapshot counters for visualizer
         m_prev_snapshot_access      = 0;
+        m_prev_snapshot_prefetched_hit = 0;
         m_prev_snapshot_miss        = 0;
         m_prev_snapshot_pending_hit = 0;
         m_core_id                   = core_id;
@@ -273,11 +275,15 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned& idx, me
                         if(line->get_status(mask) == RESERVED)
                         {
                                 idx = index;
+                                // if(line->is_prefetched())
+                                //         return PREFETCH_HIT;
                                 return HIT_RESERVED;
                         }
                         else if(line->get_status(mask) == VALID)
                         {
                                 idx = index;
+                                if(line->is_prefetched())
+                                        return PREFETCH_HIT;
                                 return HIT;
                         }
                         else if(line->get_status(mask) == MODIFIED)
@@ -285,6 +291,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned& idx, me
                                 if((!is_write && line->is_readable(mask)) || is_write)
                                 {
                                         idx = index;
+                                        if(line->is_prefetched())
+                                                return PREFETCH_HIT;
                                         return HIT;
                                 }
                                 else
@@ -383,6 +391,13 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time, u
         {
                 case HIT_RESERVED:
                         m_pending_hit++;
+                case PREFETCH_HIT:
+                        if(m_lines[idx]->is_prefetched())
+                        {
+                                m_prefetched_hit++;
+                        }
+                        m_lines[idx]->set_last_access_time(time, mf->get_access_sector_mask());
+                        break;
                 case HIT:
                         m_lines[idx]->set_last_access_time(time, mf->get_access_sector_mask());
                         break;
@@ -398,7 +413,7 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time, u
                                         evicted.set_info(m_lines[idx]->m_block_addr, m_lines[idx]->get_modified_size(), m_lines[idx]->get_dirty_byte_mask(), m_lines[idx]->get_dirty_sector_mask());
                                         m_dirty--;
                                 }
-                                m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr), time, mf->get_access_sector_mask());
+                                m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr), time, mf->get_access_sector_mask(), mf->is_prefetched());
                         }
                         break;
                 case SECTOR_MISS:
@@ -431,10 +446,10 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time, u
 
 void tag_array::fill(new_addr_type addr, unsigned time, mem_fetch* mf, bool is_write)
 {
-        fill(addr, time, mf->get_access_sector_mask(), mf->get_access_byte_mask(), is_write);
+        fill(addr, time, mf->get_access_sector_mask(), mf->get_access_byte_mask(), is_write, mf->is_prefetched());
 }
 
-void tag_array::fill(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask, mem_access_byte_mask_t byte_mask, bool is_write)
+void tag_array::fill(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask, mem_access_byte_mask_t byte_mask, bool is_write, bool is_prefetched)
 {
         // assert( m_config.m_alloc_policy == ON_FILL );
         unsigned                  idx;
@@ -446,11 +461,12 @@ void tag_array::fill(new_addr_type addr, unsigned time, mem_access_sector_mask_t
         }
 
         bool before = m_lines[idx]->is_modified_line();
+        //bool prefetch_before = m_lines[idx]->is_prefetched();
         // assert(status==MISS||status==SECTOR_MISS); // MSHR should have prevented
         // redundant memory request
         if(status == MISS)
         {
-                m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr), time, mask);
+                m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr), time, mask, is_prefetched);
         }
         else if(status == SECTOR_MISS)
         {
@@ -462,7 +478,8 @@ void tag_array::fill(new_addr_type addr, unsigned time, mem_access_sector_mask_t
                 m_dirty--;
         }
         before = m_lines[idx]->is_modified_line();
-        m_lines[idx]->fill(time, mask, byte_mask);
+        
+        m_lines[idx]->fill(time, mask, byte_mask, is_prefetched);
         if(m_lines[idx]->is_modified_line() && !before)
         {
                 m_dirty++;
@@ -473,7 +490,7 @@ void tag_array::fill(unsigned index, unsigned time, mem_fetch* mf)
 {
         assert(m_config.m_alloc_policy == ON_MISS);
         bool before = m_lines[index]->is_modified_line();
-        m_lines[index]->fill(time, mf->get_access_sector_mask(), mf->get_access_byte_mask());
+        m_lines[index]->fill(time, mf->get_access_sector_mask(), mf->get_access_byte_mask(), mf->is_prefetched());
         if(m_lines[index]->is_modified_line() && !before)
         {
                 m_dirty++;
@@ -514,6 +531,7 @@ void tag_array::invalidate()
 float tag_array::windowed_miss_rate() const
 {
         unsigned n_access = m_access - m_prev_snapshot_access;
+        unsigned n_m_prefetched_hit = m_prefetched_hit - m_prev_snapshot_prefetched_hit;
         unsigned n_miss   = (m_miss + m_sector_miss) - m_prev_snapshot_miss;
         // unsigned n_pending_hit = m_pending_hit - m_prev_snapshot_pending_hit;
 
@@ -526,18 +544,20 @@ float tag_array::windowed_miss_rate() const
 void tag_array::new_window()
 {
         m_prev_snapshot_access      = m_access;
+        m_prev_snapshot_prefetched_hit = m_prefetched_hit;
         m_prev_snapshot_miss        = m_miss;
         m_prev_snapshot_miss        = m_miss + m_sector_miss;
         m_prev_snapshot_pending_hit = m_pending_hit;
 }
 
-void tag_array::print(FILE* stream, unsigned& total_access, unsigned& total_misses) const
+void tag_array::print(FILE* stream, unsigned& total_access, unsigned& total_misses, unsigned& total_prefetch_hit) const
 {
         m_config.print(stream);
         fprintf(stream,
-                "\t\tAccess = %d, Miss = %d, Sector_Miss = %d, Total_Miss = %d "
+                "\t\tAccess = %d, Prefetche_hit = %d, Miss = %d, Sector_Miss = %d, Total_Miss = %d "
                 "(%.3g), PendingHit = %d (%.3g)\n",
                 m_access,
+                m_prefetched_hit,
                 m_miss,
                 m_sector_miss,
                 (m_miss + m_sector_miss),
@@ -546,12 +566,14 @@ void tag_array::print(FILE* stream, unsigned& total_access, unsigned& total_miss
                 (float)m_pending_hit / m_access);
         total_misses += (m_miss + m_sector_miss);
         total_access += m_access;
+        total_prefetch_hit += m_prefetched_hit;
 }
 
-void tag_array::get_stats(unsigned& total_access, unsigned& total_misses, unsigned& total_hit_res, unsigned& total_res_fail) const
+void tag_array::get_stats(unsigned& total_access, unsigned& total_misses, unsigned& total_hit_res, unsigned& total_res_fail, unsigned& total_prefetch_hit) const
 {
         // Update statistics from the tag array
         total_access   = m_access;
+        total_prefetch_hit = m_prefetched_hit;
         total_misses   = (m_miss + m_sector_miss);
         total_hit_res  = m_pending_hit;
         total_res_fail = m_res_fail;
@@ -981,7 +1003,7 @@ void cache_stats::get_sub_stats(struct cache_sub_stats& css) const
         {
                 for(unsigned status = 0; status < NUM_CACHE_REQUEST_STATUS; ++status)
                 {
-                        if(status == HIT || status == MISS || status == SECTOR_MISS || status == HIT_RESERVED)
+                        if(status == HIT || status == MISS || status == SECTOR_MISS || status == HIT_RESERVED || PREFETCH_HIT)
                                 t_css.accesses += m_stats[type][status];
 
                         if(status == MISS || status == SECTOR_MISS)
@@ -992,9 +1014,15 @@ void cache_stats::get_sub_stats(struct cache_sub_stats& css) const
 
                         if(status == RESERVATION_FAIL)
                                 t_css.res_fails += m_stats[type][status];
+                        if(status == PREFETCH_HIT)
+                                t_css.prefetch_hit += m_stats[type][status];
                 }
         }
 
+        t_css.prefetch_access = m_num_prefetch_access;
+        t_css.demand_access = m_num_demand_access;
+        //t_css.prefetch_hit = m_num_prefetch_hit;
+        
         t_css.port_available_cycles = m_cache_port_available_cycles;
         t_css.data_port_busy_cycles = m_cache_data_port_busy_cycles;
         t_css.fill_port_busy_cycles = m_cache_fill_port_busy_cycles;
@@ -1014,7 +1042,7 @@ void cache_stats::get_sub_stats_pw(struct cache_sub_stats_pw& css) const
         {
                 for(unsigned status = 0; status < NUM_CACHE_REQUEST_STATUS; ++status)
                 {
-                        if(status == HIT || status == MISS || status == SECTOR_MISS || status == HIT_RESERVED)
+                        if(status == HIT || status == MISS || status == SECTOR_MISS || status == HIT_RESERVED || PREFETCH_HIT)
                                 t_css.accesses += m_stats_pw[type][status];
 
                         if(status == HIT)
@@ -1119,6 +1147,12 @@ void baseline_cache::bandwidth_management::use_data_port(mem_fetch* mf, enum cac
         unsigned port_width = m_config.m_data_port_width;
         switch(outcome)
         {
+                case PREFETCH_HIT:
+                {
+                        unsigned data_cycles = data_size / port_width + ((data_size % port_width > 0) ? 1 : 0);
+                        m_data_port_occupied_cycles += data_cycles;
+                }
+                break;
                 case HIT:
                 {
                         unsigned data_cycles = data_size / port_width + ((data_size % port_width > 0) ? 1 : 0);
@@ -1266,10 +1300,10 @@ bool baseline_cache::waiting_for_fill(mem_fetch* mf)
         return e != m_extra_mf_fields.end();
 }
 
-void baseline_cache::print(FILE* fp, unsigned& accesses, unsigned& misses) const
+void baseline_cache::print(FILE* fp, unsigned& accesses, unsigned& misses, unsigned& prefetch_hit) const
 {
         fprintf(fp, "Cache %s:\t", m_name.c_str());
-        m_tag_array->print(fp, accesses, misses);
+        m_tag_array->print(fp, accesses, misses, prefetch_hit);
 }
 
 void baseline_cache::display_state(FILE* fp) const
@@ -1874,6 +1908,8 @@ enum cache_request_status read_only_cache::access(new_addr_type addr, mem_fetch*
         {
                 cache_status = m_tag_array->access(block_addr, time, cache_index,
                                                    mf); // update LRU state
+                if(status == PREFETCH_HIT)
+                        cache_status = PREFETCH_HIT;
         }
         else if(status != RESERVATION_FAIL)
         {
@@ -1885,6 +1921,8 @@ enum cache_request_status read_only_cache::access(new_addr_type addr, mem_fetch*
                                 cache_status = MISS;
                         else
                                 cache_status = RESERVATION_FAIL;
+                        if(status == PREFETCH_HIT)
+                                cache_status = PREFETCH_HIT;
                 }
                 else
                 {
@@ -1915,13 +1953,17 @@ data_cache::process_tag_probe(bool wr, enum cache_request_status probe_status, n
         cache_request_status access_status = probe_status;
         if(wr)
         { // Write
-                if(probe_status == HIT)
+                if(probe_status == HIT || probe_status == PREFETCH_HIT)
                 {
                         access_status = (this->*m_wr_hit)(addr, cache_index, mf, time, events, probe_status);
+                        if(probe_status == PREFETCH_HIT)
+                                access_status = PREFETCH_HIT;
                 }
                 else if((probe_status != RESERVATION_FAIL) || (probe_status == RESERVATION_FAIL && m_config.m_write_alloc_policy == NO_WRITE_ALLOCATE))
                 {
                         access_status = (this->*m_wr_miss)(addr, cache_index, mf, time, events, probe_status);
+                        if(probe_status == PREFETCH_HIT)
+                                access_status = PREFETCH_HIT;
                 }
                 else
                 {
@@ -1932,13 +1974,17 @@ data_cache::process_tag_probe(bool wr, enum cache_request_status probe_status, n
         }
         else
         { // Read
-                if(probe_status == HIT)
+                if(probe_status == HIT || probe_status == PREFETCH_HIT)
                 {
                         access_status = (this->*m_rd_hit)(addr, cache_index, mf, time, events, probe_status);
+                        if(probe_status == PREFETCH_HIT)
+                                access_status = PREFETCH_HIT;
                 }
                 else if(probe_status != RESERVATION_FAIL)
                 {
                         access_status = (this->*m_rd_miss)(addr, cache_index, mf, time, events, probe_status);
+                        if(probe_status == PREFETCH_HIT)
+                                access_status = PREFETCH_HIT;
                 }
                 else
                 {

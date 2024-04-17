@@ -1724,7 +1724,7 @@ class ldst_unit: public pipelined_simd_unit
                 }
                 bool response_buffer_full() const;
                 void print(FILE* fout) const;
-                void print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses);
+                void print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses, unsigned& dl1_prefetch_hit);
                 void get_cache_stats(unsigned& read_accesses, unsigned& write_accesses, unsigned& read_misses, unsigned& write_misses, unsigned cache_type);
                 void get_cache_stats(cache_stats& cs);
 
@@ -2471,7 +2471,7 @@ class shader_core_ctx: public core_t
                 {
                         return m_config;
                 }
-                void print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses);
+                void print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses, unsigned& dl1_prefetch_hit);
 
                 void get_cache_stats(cache_stats& cs);
                 void get_L1I_sub_stats(struct cache_sub_stats& css) const;
@@ -3019,7 +3019,7 @@ class simt_core_cluster
                 }
 
                 void display_pipeline(unsigned sid, FILE* fout, int print_mem, int mask);
-                void print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses) const;
+                void print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses, unsigned dl1_prefetch_hit) const;
 
                 void get_cache_stats(cache_stats& cs) const;
                 void get_L1I_sub_stats(struct cache_sub_stats& css) const;

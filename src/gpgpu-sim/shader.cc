@@ -1058,7 +1058,7 @@ void shader_core_ctx::fetch()
                                                 m_warp[warp_id]->set_imiss_pending();
                                                 m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
                                         }
-                                        else if(status == HIT)
+                                        else if(status == HIT || status == PREFETCH_HIT)
                                         {
                                                 m_last_warp_fetched = warp_id;
                                                 m_inst_fetch_buffer = ifetch_buffer_t(pc, nbytes, warp_id);
@@ -1997,11 +1997,11 @@ void shader_core_ctx::execute()
         }
 }
 
-void ldst_unit::print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses)
+void ldst_unit::print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses, unsigned& dl1_prefetch_hit)
 {
         if(m_L1D)
         {
-                m_L1D->print(fp, dl1_accesses, dl1_misses);
+                m_L1D->print(fp, dl1_accesses, dl1_misses, dl1_prefetch_hit);
         }
 }
 
@@ -2184,7 +2184,7 @@ mem_stage_stall_type ldst_unit::process_cache_access(cache_t* cache, new_addr_ty
 
                 for(unsigned i = 0; i < inc_ack; ++i) m_core->inc_store_req(inst.warp_id());
         }
-        if(status == HIT)
+        if(status == HIT || status == PREFETCH_HIT)
         {
                 assert(!read_sent);
                 inst.accessq_pop_back();
@@ -2326,6 +2326,7 @@ void ldst_unit::L1_latency_queue_cycle()
                         enum cache_request_status status = m_L1D->access(mf_next->get_addr(), mf_next, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle, events);
                         if(mf_next->get_inst().is_load() && status != RESERVATION_FAIL)
                         {
+                                m_L1D->get_inc_num_demands(1);
                                 //prefetch_requests = m_core->get_prefetcher()->generate_prefetch_candidates( d, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
                                 //std::list<new_addr_type> temp_list;
                                 // for(auto& req :prefetch_requests)
@@ -2345,7 +2346,7 @@ void ldst_unit::L1_latency_queue_cycle()
                         bool write_sent = was_write_sent(events);
                         bool read_sent  = was_read_sent(events);
 
-                        if(status == HIT)
+                        if(status == HIT || status == PREFETCH_HIT)
                         {
                                 assert(!read_sent);
                                 l1_latency_queue[j][0] = NULL;
@@ -2470,6 +2471,7 @@ void ldst_unit::L1_latency_queue_cycle()
                                         break;
                         }
                         m_core->get_prefetcher()->prefetch_requests.erase(it);
+                        m_L1D->get_inc_num_prefetched(1);
                 }
         }
 }
@@ -3441,13 +3443,14 @@ void gpgpu_sim::shader_print_cache_stats(FILE* fout) const
 
                         fprintf(stdout,
                                 "\tL1D_cache_core[%d]: Access = %llu, Miss = %llu, Miss_rate = "
-                                "%.3lf, Pending_hits = %llu, Reservation_fails = %llu\n",
+                                "%.3lf, Pending_hits = %llu, Reservation_fails = %llu, Prefetch_hit = %llu\n",
                                 i,
                                 css.accesses,
                                 css.misses,
                                 (double)css.misses / (double)css.accesses,
                                 css.pending_hits,
-                                css.res_fails);
+                                css.res_fails,
+                                css.prefetch_hit);
 
                         total_css += css;
                 }
@@ -3460,6 +3463,10 @@ void gpgpu_sim::shader_print_cache_stats(FILE* fout) const
                 fprintf(fout, "\tL1D_total_cache_pending_hits = %llu\n", total_css.pending_hits);
                 fprintf(fout, "\tL1D_total_cache_reservation_fails = %llu\n", total_css.res_fails);
                 total_css.print_port_stats(fout, "\tL1D_cache");
+
+                fprintf(fout,"\tnum of Total send prefetch requests:  %u\n",total_css.prefetch_access);
+                fprintf(fout,"\tnum of Total demnad request:  %u\n",total_css.demand_access);
+                fprintf(fout,"\tCoverage:  %u\n",total_css.prefetch_hit);
         }
 
         // L1C
@@ -3510,8 +3517,8 @@ void gpgpu_sim::shader_print_l1_miss_stat(FILE* fout) const
         unsigned total_d1_misses = 0, total_d1_accesses = 0;
         for(unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i)
         {
-                unsigned custer_d1_misses = 0, cluster_d1_accesses = 0;
-                m_cluster[i]->print_cache_stats(fout, cluster_d1_accesses, custer_d1_misses);
+                unsigned custer_d1_misses = 0, cluster_d1_accesses = 0, cluster_dl1_prefetch_hit;
+                m_cluster[i]->print_cache_stats(fout, cluster_d1_accesses, custer_d1_misses, cluster_dl1_prefetch_hit);
                 total_d1_misses += custer_d1_misses;
                 total_d1_accesses += cluster_d1_accesses;
         }
@@ -4431,9 +4438,9 @@ void shader_core_ctx::store_ack(class mem_fetch* mf)
         m_warp[warp_id]->dec_store_req();
 }
 
-void shader_core_ctx::print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses)
+void shader_core_ctx::print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses, unsigned& dl1_prefetch_hit)
 {
-        m_ldst_unit->print_cache_stats(fp, dl1_accesses, dl1_misses);
+        m_ldst_unit->print_cache_stats(fp, dl1_accesses, dl1_misses, dl1_prefetch_hit);
 }
 
 void shader_core_ctx::get_cache_stats(cache_stats& cs)
@@ -5202,11 +5209,11 @@ void simt_core_cluster::display_pipeline(unsigned sid, FILE* fout, int print_mem
         }
 }
 
-void simt_core_cluster::print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses) const
+void simt_core_cluster::print_cache_stats(FILE* fp, unsigned& dl1_accesses, unsigned& dl1_misses, unsigned dl1_prefetch_hit) const
 {
         for(unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i)
         {
-                m_core[i]->print_cache_stats(fp, dl1_accesses, dl1_misses);
+                m_core[i]->print_cache_stats(fp, dl1_accesses, dl1_misses, dl1_prefetch_hit);
         }
 }
 

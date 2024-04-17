@@ -126,6 +126,7 @@ namespace CTA_Aware
                 public:
                         const unsigned int INVALID = std::numeric_limits<unsigned int>::max();
                         std::list<std::pair<new_addr_type, unsigned int>> prefetch_requests;
+                        long unsigned num_prefetch_requests = 0;
 
                         void         mark_request_serviced(unsigned int warp_id); // called by LDST Unit. Sets the Warp ID for the warp which got its prefetch request serviced
                         unsigned int get_warp_id(); // Called by SM. Returns the Warp ID of the warp for which the prefetch request was serviced most recently. After returning the

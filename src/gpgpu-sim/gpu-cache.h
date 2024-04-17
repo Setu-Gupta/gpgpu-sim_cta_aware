@@ -54,6 +54,7 @@ enum cache_block_state
 enum cache_request_status
 {
         HIT = 0,
+        PREFETCH_HIT,
         HIT_RESERVED,
         MISS,
         RESERVATION_FAIL,
@@ -135,8 +136,8 @@ struct cache_block_t
                         m_block_addr = 0;
                 }
 
-                virtual void allocate(new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask) = 0;
-                virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask, mem_access_byte_mask_t byte_mask)                = 0;
+                virtual void allocate(new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask, bool is_prefetched) = 0;
+                virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask, mem_access_byte_mask_t byte_mask, bool is_prefetched)                = 0;
 
                 virtual bool is_invalid_line()  = 0;
                 virtual bool is_valid_line()    = 0;
@@ -161,6 +162,7 @@ struct cache_block_t
                 virtual bool                     is_readable(mem_access_sector_mask_t sector_mask)                                   = 0;
                 virtual void                     print_status()                                                                      = 0;
                 virtual ~cache_block_t() {}
+                virtual bool                     is_prefetched()                                                                     = 0;
 
                 new_addr_type m_tag;
                 new_addr_type m_block_addr;
@@ -178,8 +180,9 @@ struct line_cache_block: public cache_block_t
                         m_set_modified_on_fill  = false;
                         m_set_readable_on_fill  = false;
                         m_readable              = true;
+                        m_prefetched            = false;
                 }
-                void allocate(new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask)
+                void allocate(new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask, bool is_prefetched)
                 {
                         m_tag                   = tag;
                         m_block_addr            = block_addr;
@@ -191,14 +194,15 @@ struct line_cache_block: public cache_block_t
                         m_set_modified_on_fill  = false;
                         m_set_readable_on_fill  = false;
                         m_set_byte_mask_on_fill = false;
+                        m_prefetched = is_prefetched;
                 }
-                virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask, mem_access_byte_mask_t byte_mask)
+                virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask, mem_access_byte_mask_t byte_mask, bool is_prefetched)
                 {
                         // if(!m_ignore_on_fill_status)
                         //	assert( m_status == RESERVED );
 
                         m_status = m_set_modified_on_fill ? MODIFIED : VALID;
-
+                        m_prefetched = is_prefetched;
                         if(m_set_readable_on_fill)
                                 m_readable = true;
                         if(m_set_byte_mask_on_fill)
@@ -295,6 +299,11 @@ struct line_cache_block: public cache_block_t
                         printf("m_block_addr is %llu, status = %u\n", m_block_addr, m_status);
                 }
 
+                virtual bool is_prefetched()
+                {
+                        return m_prefetched;
+                }
+
         private:
                 unsigned long long     m_alloc_time;
                 unsigned long long     m_last_access_time;
@@ -306,6 +315,7 @@ struct line_cache_block: public cache_block_t
                 bool                   m_set_byte_mask_on_fill;
                 bool                   m_readable;
                 mem_access_byte_mask_t m_dirty_byte_mask;
+                bool                   m_prefetched;
 };
 
 struct sector_cache_block: public cache_block_t
@@ -334,7 +344,7 @@ struct sector_cache_block: public cache_block_t
                         m_dirty_byte_mask.reset();
                 }
 
-                virtual void allocate(new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask)
+                virtual void allocate(new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask, bool is_prefetched)
                 {
                         allocate_line(tag, block_addr, time, sector_mask);
                 }
@@ -358,6 +368,7 @@ struct sector_cache_block: public cache_block_t
                         m_set_modified_on_fill[sidx]    = false;
                         m_set_readable_on_fill[sidx]    = false;
                         m_set_byte_mask_on_fill         = false;
+                        m_prefetched                    = false;
 
                         // set line stats
                         m_line_alloc_time       = time; // only set this for the first allocated sector
@@ -393,9 +404,10 @@ struct sector_cache_block: public cache_block_t
                         m_line_fill_time        = 0;
                 }
 
-                virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask, mem_access_byte_mask_t byte_mask)
+                virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask, mem_access_byte_mask_t byte_mask, bool is_prefetched)
                 {
                         unsigned sidx = get_sector_index(sector_mask);
+                        m_prefetched = is_prefetched;
 
                         //	if(!m_ignore_on_fill_status[sidx])
                         //	         assert( m_status[sidx] == RESERVED );
@@ -549,6 +561,11 @@ struct sector_cache_block: public cache_block_t
                         printf("m_block_addr is %llu, status = %u %u %u %u\n", m_block_addr, m_status[0], m_status[1], m_status[2], m_status[3]);
                 }
 
+                virtual bool is_prefetched()
+                {
+                        return m_prefetched;
+                }
+
         private:
                 unsigned               m_sector_alloc_time[SECTOR_CHUNCK_SIZE];
                 unsigned               m_last_sector_access_time[SECTOR_CHUNCK_SIZE];
@@ -563,6 +580,7 @@ struct sector_cache_block: public cache_block_t
                 bool                   m_set_byte_mask_on_fill;
                 bool                   m_readable[SECTOR_CHUNCK_SIZE];
                 mem_access_byte_mask_t m_dirty_byte_mask;
+                bool                   m_prefetched;
 
                 unsigned get_sector_index(mem_access_sector_mask_t sector_mask)
                 {
@@ -1095,7 +1113,7 @@ class tag_array
 
                 void fill(new_addr_type addr, unsigned time, mem_fetch* mf, bool is_write);
                 void fill(unsigned idx, unsigned time, mem_fetch* mf);
-                void fill(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask, mem_access_byte_mask_t byte_mask, bool is_write);
+                void fill(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask, mem_access_byte_mask_t byte_mask, bool is_write, bool is_prefetched);
 
                 unsigned size() const
                 {
@@ -1110,9 +1128,9 @@ class tag_array
                 void invalidate(); // invalidate all entries
                 void new_window();
 
-                void  print(FILE* stream, unsigned& total_access, unsigned& total_misses) const;
+                void  print(FILE* stream, unsigned& total_access, unsigned& total_misses, unsigned& total_prefetch_hit) const;
                 float windowed_miss_rate() const;
-                void  get_stats(unsigned& total_access, unsigned& total_misses, unsigned& total_hit_res, unsigned& total_res_fail) const;
+                void  get_stats(unsigned& total_access, unsigned& total_misses, unsigned& total_hit_res, unsigned& total_res_fail, unsigned& total_prefetch_hit) const;
 
                 void update_cache_parameters(cache_config& config);
                 void add_pending_line(mem_fetch* mf);
@@ -1138,6 +1156,8 @@ class tag_array
                 unsigned m_miss;
                 unsigned m_pending_hit; // number of cache miss that hit a line that is
                                         // allocated but not filled
+
+                unsigned m_prefetched_hit;
                 unsigned m_res_fail;
                 unsigned m_sector_miss;
                 unsigned m_dirty;
@@ -1145,6 +1165,7 @@ class tag_array
                 // performance counters for calculating the amount of misses within a time
                 // window
                 unsigned m_prev_snapshot_access;
+                unsigned m_prev_snapshot_prefetched_hit;
                 unsigned m_prev_snapshot_miss;
                 unsigned m_prev_snapshot_pending_hit;
 
@@ -1234,6 +1255,10 @@ struct cache_sub_stats
                 unsigned long long pending_hits;
                 unsigned long long res_fails;
 
+                unsigned prefetch_access; //PP
+                unsigned demand_access;  //PD
+                unsigned prefetch_hit;  //PP ^ PD
+
                 unsigned long long port_available_cycles;
                 unsigned long long data_port_busy_cycles;
                 unsigned long long fill_port_busy_cycles;
@@ -1251,6 +1276,10 @@ struct cache_sub_stats
                         port_available_cycles = 0;
                         data_port_busy_cycles = 0;
                         fill_port_busy_cycles = 0;
+
+                        prefetch_access       = 0;
+                        demand_access         = 0;
+                        prefetch_hit          = 0;
                 }
                 cache_sub_stats& operator+=(const cache_sub_stats& css)
                 {
@@ -1261,6 +1290,11 @@ struct cache_sub_stats
                         misses += css.misses;
                         pending_hits += css.pending_hits;
                         res_fails += css.res_fails;
+
+                        prefetch_access += css.prefetch_access;
+                        demand_access += css.demand_access;
+                        prefetch_hit += css.prefetch_hit;
+
                         port_available_cycles += css.port_available_cycles;
                         data_port_busy_cycles += css.data_port_busy_cycles;
                         fill_port_busy_cycles += css.fill_port_busy_cycles;
@@ -1277,6 +1311,11 @@ struct cache_sub_stats
                         ret.misses                = misses + cs.misses;
                         ret.pending_hits          = pending_hits + cs.pending_hits;
                         ret.res_fails             = res_fails + cs.res_fails;
+
+                        ret.prefetch_access += prefetch_access + cs.prefetch_access;
+                        ret.demand_access += demand_access + cs.demand_access;
+                        ret.prefetch_hit += prefetch_hit + cs.prefetch_hit;
+
                         ret.port_available_cycles = port_available_cycles + cs.port_available_cycles;
                         ret.data_port_busy_cycles = data_port_busy_cycles + cs.data_port_busy_cycles;
                         ret.fill_port_busy_cycles = fill_port_busy_cycles + cs.fill_port_busy_cycles;
@@ -1381,6 +1420,18 @@ class cache_stats
 
                 void sample_cache_port_utility(bool data_port_busy, bool fill_port_busy);
 
+                void inc_num_prefetched(int s){
+                        m_num_prefetch_access += s;
+                }
+
+                void inc_num_demands(int s){
+                        m_num_demand_access += s;
+                }
+
+                void inc_num_prefetch_hit(int s){
+                        m_num_prefetch_hit += s;
+                }
+
         private:
                 bool check_valid(int type, int status) const;
                 bool check_fail_valid(int type, int fail) const;
@@ -1390,6 +1441,10 @@ class cache_stats
                 std::vector<std::vector<unsigned long long> > m_stats_pw;
                 std::vector<std::vector<unsigned long long> > m_fail_stats;
 
+                unsigned m_num_prefetch_access;
+                unsigned m_num_demand_access;
+                unsigned m_num_prefetch_hit;
+                
                 unsigned long long m_cache_port_available_cycles;
                 unsigned long long m_cache_data_port_busy_cycles;
                 unsigned long long m_cache_fill_port_busy_cycles;
@@ -1470,7 +1525,7 @@ class baseline_cache: public cache_t
                 {
                         m_tag_array->invalidate();
                 }
-                void print(FILE* fp, unsigned& accesses, unsigned& misses) const;
+                void print(FILE* fp, unsigned& accesses, unsigned& misses, unsigned& prefetch_hit) const;
                 void display_state(FILE* fp) const;
 
                 // Stat collection
@@ -1497,6 +1552,18 @@ class baseline_cache: public cache_t
                         m_stats.get_sub_stats_pw(css);
                 }
 
+                void get_inc_num_prefetched(int s){
+                        m_stats.inc_num_prefetched(s);
+                }
+
+                void get_inc_num_demands(int s){
+                        m_stats.inc_num_demands(s);
+                }
+
+                void get_inc_num_prefetch_hit(int s){
+                        m_stats.inc_num_prefetch_hit(s);
+                }
+
                 // accessors for cache bandwidth availability
                 bool data_port_free() const
                 {
@@ -1514,7 +1581,7 @@ class baseline_cache: public cache_t
                 void force_tag_access(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask)
                 {
                         mem_access_byte_mask_t byte_mask;
-                        m_tag_array->fill(addr, time, mask, byte_mask, true);
+                        m_tag_array->fill(addr, time, mask, byte_mask, true, 0);
                 }
 
         protected:

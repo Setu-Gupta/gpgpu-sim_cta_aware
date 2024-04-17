@@ -209,7 +209,7 @@ class memory_sub_partition
                 void dram_L2_queue_push(class mem_fetch* mf);
 
                 void visualizer_print(gzFile visualizer_file);
-                void print_cache_stat(unsigned& accesses, unsigned& misses) const;
+                void print_cache_stat(unsigned& accesses, unsigned& misses, unsigned& prefetch_hit) const;
                 void print(FILE* fp) const;
 
                 void accumulate_L2cache_stats(class cache_stats& l2_stats) const;
