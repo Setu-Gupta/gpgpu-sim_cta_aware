@@ -2315,14 +2315,14 @@ void ldst_unit::L1_latency_queue_cycle()
                         const warp_inst_t inst = mf_next->get_inst();
                         std::vector<new_addr_type> s_thread_address = inst.get_first_valid_addr();
                         std::list<CTA_Aware::CTA_data_t> d;
-                        CTA_Aware::CTA_data_t data((this->m_core)->get_kernel()->threads_per_cta() / m_config->warp_size, ctaid, inst.pc, inst.warp_id(), std::move(s_thread_address), mf_next->get_access_warp_mask(), mf_next->get_access_byte_mask());
+                        CTA_Aware::CTA_data_t data((this->m_core)->get_kernel()->threads_per_cta() / m_config->warp_size, ctaid, inst.pc, inst.warp_id(), std::move(s_thread_address), 
+                        mf_next->get_access_warp_mask(), mf_next->get_access_byte_mask(), mf_next->get_addr());
                         d.emplace_back(data);
-                        if(prefetched_warpId.find(inst.warp_id()) == prefetched_warpId.end() ){
+                        if(prefetched_warpId.find(inst.warp_id()) == prefetched_warpId.end()){
                                 m_core->get_prefetcher()->generate_prefetch_candidates( d, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
                                 prefetched_warpId.insert(inst.warp_id());
                                 mf_for_prefetch = mf_next;
                         }
-                        
                         enum cache_request_status status = m_L1D->access(mf_next->get_addr(), mf_next, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle, events);
 
                         if(mf_next->get_inst().is_load() && status != RESERVATION_FAIL)

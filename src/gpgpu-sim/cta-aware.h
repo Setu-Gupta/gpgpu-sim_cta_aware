@@ -17,7 +17,7 @@
 #define MAX_CTA_TABLE_SIZE  4   // Maximum number of entries in the PerCTA table for each CTA
 #define MAX_DIST_TABLE_SIZE 4   // Maximum number of entries in the Distance table
 #define MISPRED_THRESH      128 // Maximum number of allowed mispredictions per PC
-#define COALESCING_BITS     8   // Number of lower order bits to mask off while coalescing
+#define COALESCING_BITS     7   // Number of lower order bits to mask off while coalescing
 
 namespace CTA_Aware
 {
@@ -96,10 +96,11 @@ namespace CTA_Aware
                 std::vector<new_addr_type> base_addresses; // Memory addresses for all threads in the warp
                 const active_mask_t active_mask;
                 const mem_access_byte_mask_t byte_mask;
+                new_addr_type                mf_address;
 
                 CTA_data_t(const unsigned int n_warps, unsigned int ctaid, const new_addr_type pc, const unsigned int wid, const std::vector<new_addr_type>&& ba, const active_mask_t active_mask,
-                const mem_access_byte_mask_t byte_mask):
-                        num_warps(n_warps), CTA_ID(ctaid), PC(pc), Warp_ID(wid), base_addresses(std::move(ba)), active_mask(active_mask), byte_mask(byte_mask)
+                const mem_access_byte_mask_t byte_mask, new_addr_type mf_address):
+                        num_warps(n_warps), CTA_ID(ctaid), PC(pc), Warp_ID(wid), base_addresses(std::move(ba)), active_mask(active_mask), byte_mask(byte_mask), mf_address(mf_address)
                 {}
         };
 
