@@ -2385,6 +2385,11 @@ void ldst_unit::L1_latency_queue_cycle()
                         else
                         {
                                 assert(status == MISS || status == HIT_RESERVED);
+
+                                if (m_core->get_prefetcher()->prefetch_send.find(std::pair<new_addr_type, unsigned>(mf_next->get_addr(),inst.warp_id())) != m_core->get_prefetcher()->prefetch_send.end()) {
+                                        // TODO SABA
+                                }
+                                
                                 l1_latency_queue[j][0] = NULL;
                                 if(m_config->m_L1D_config.get_write_policy() != WRITE_THROUGH && mf_next->get_inst().is_store() &&
                                    (m_config->m_L1D_config.get_write_allocate_policy() == FETCH_ON_WRITE || m_config->m_L1D_config.get_write_allocate_policy() == LAZY_FETCH_ON_READ) &&
@@ -2443,6 +2448,7 @@ void ldst_unit::L1_latency_queue_cycle()
                                 {
                                         //temp_list.push_back(req);
                                         consumed_addrs.push_back(a);
+                                        m_core->get_prefetcher()->prefetch_send.insert(a);
                                 }
                         }
                         if(consumed_addrs.size() >= m_config->m_L1D_config.l1_banks)

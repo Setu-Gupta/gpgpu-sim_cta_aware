@@ -1424,6 +1424,10 @@ class cache_stats
                         m_num_prefetch_access += s;
                 }
 
+                void inc_num_inaccurate(int s){
+                        m_num_inaccurate_access += s;
+                }
+
                 void inc_num_demands(int s){
                         m_num_demand_access += s;
                 }
@@ -1443,6 +1447,7 @@ class cache_stats
 
                 unsigned m_num_prefetch_access;
                 unsigned m_num_demand_access;
+                unsigned m_num_inaccurate_access;
                 unsigned m_num_prefetch_hit;
                 
                 unsigned long long m_cache_port_available_cycles;
@@ -1554,6 +1559,10 @@ class baseline_cache: public cache_t
 
                 void get_inc_num_prefetched(int s){
                         m_stats.inc_num_prefetched(s);
+                }
+
+                void get_inc_num_inaccurate(int s){
+                        m_stats.inc_num_inaccurate(s);
                 }
 
                 void get_inc_num_demands(int s){

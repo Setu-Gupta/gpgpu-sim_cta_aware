@@ -129,6 +129,8 @@ namespace CTA_Aware
                         std::list<std::pair<new_addr_type, unsigned int>> prefetch_requests;   // List of prefetch requests. Each request is a pair of the address and the warp ID
                         long unsigned num_prefetch_requests = 0;
 
+                        std::set<std::pair<new_addr_type, unsigned int>> prefetch_send; // List of prefetch requests which have been sent to the memory system
+
                         void         mark_request_serviced(unsigned int warp_id); // called by LDST Unit. Sets the Warp ID for the warp which got its prefetch request serviced
                         unsigned int get_warp_id(); // Called by SM. Returns the Warp ID of the warp for which the prefetch request was serviced most recently. After returning the
                                                     // value, the last_serviced_warp_id is reset to INVALID
