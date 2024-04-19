@@ -1021,6 +1021,7 @@ void cache_stats::get_sub_stats(struct cache_sub_stats& css) const
 
         t_css.prefetch_access = m_num_prefetch_access;
         t_css.demand_access = m_num_demand_access;
+        t_css.inaccurate_access = m_num_inaccurate_access;
         //t_css.prefetch_hit = m_num_prefetch_hit;
         
         t_css.port_available_cycles = m_cache_port_available_cycles;

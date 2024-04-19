@@ -1258,6 +1258,7 @@ struct cache_sub_stats
                 unsigned prefetch_access; //PP
                 unsigned demand_access;  //PD
                 unsigned prefetch_hit;  //PP ^ PD
+                unsigned inaccurate_access; //Timeliness
 
                 unsigned long long port_available_cycles;
                 unsigned long long data_port_busy_cycles;
@@ -1280,6 +1281,7 @@ struct cache_sub_stats
                         prefetch_access       = 0;
                         demand_access         = 0;
                         prefetch_hit          = 0;
+                        inaccurate_access     = 0;
                 }
                 cache_sub_stats& operator+=(const cache_sub_stats& css)
                 {
@@ -1294,6 +1296,7 @@ struct cache_sub_stats
                         prefetch_access += css.prefetch_access;
                         demand_access += css.demand_access;
                         prefetch_hit += css.prefetch_hit;
+                        inaccurate_access += css.inaccurate_access;
 
                         port_available_cycles += css.port_available_cycles;
                         data_port_busy_cycles += css.data_port_busy_cycles;
@@ -1315,6 +1318,7 @@ struct cache_sub_stats
                         ret.prefetch_access += prefetch_access + cs.prefetch_access;
                         ret.demand_access += demand_access + cs.demand_access;
                         ret.prefetch_hit += prefetch_hit + cs.prefetch_hit;
+                        ret.inaccurate_access += inaccurate_access + cs.inaccurate_access;
 
                         ret.port_available_cycles = port_available_cycles + cs.port_available_cycles;
                         ret.data_port_busy_cycles = data_port_busy_cycles + cs.data_port_busy_cycles;

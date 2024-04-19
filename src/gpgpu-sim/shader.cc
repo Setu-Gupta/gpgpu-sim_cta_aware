@@ -2387,7 +2387,7 @@ void ldst_unit::L1_latency_queue_cycle()
                                 assert(status == MISS || status == HIT_RESERVED);
 
                                 if (m_core->get_prefetcher()->prefetch_send.find(std::pair<new_addr_type, unsigned>(mf_next->get_addr(),inst.warp_id())) != m_core->get_prefetcher()->prefetch_send.end()) {
-                                        // TODO SABA
+                                        m_L1D->get_inc_num_inaccurate(1);
                                 }
                                 
                                 l1_latency_queue[j][0] = NULL;
@@ -3461,6 +3461,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE* fout) const
                 fprintf(fout,"\tnum of Total send prefetch requests:  %u\n",total_css.prefetch_access);
                 fprintf(fout,"\tnum of Total demnad request:  %u\n",total_css.demand_access);
                 fprintf(fout,"\tCoverage:  %u\n",total_css.prefetch_hit);
+                fprintf(fout,"\tInaccuracy:  %u\n", total_css.inaccurate_access);
         }
 
         // L1C
