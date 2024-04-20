@@ -111,8 +111,10 @@ namespace CTA_Aware
                         std::map<unsigned int, std::map<unsigned int, PerCTA_entry_t>> PerCTA_table;          // Index 1 = CTA ID, Index 2 = Program Counter. Limited to MAX_CTA_TABLE_SIZE entries
                         std::map<unsigned int, Dist_entry_t>                           Dist_table;            // Index = Program Counter, Limited to MAX_DIST_TABLE_SIZE entries
                         unsigned int                                                   last_serviced_warp_id; // Warp ID of the most recently serviced prefetch
+                        std::map<unsigned int, new_addr_type>                          warp_base_addr;        // To keep track of the base address of each warp to prevent false repetition
 
                         std::vector<new_addr_type> get_coalesced_addresses(const std::vector<new_addr_type>&& addrs) const;
+                        new_addr_type get_coalesced_addresses(new_addr_type addrs) const;
 
                         bool                       in_PerCTA(const unsigned int CTA_ID, const unsigned int PC) const;              // Checks whether there is an entry for CTA_ID and PC in the PerCTA table
                         std::size_t                size_of_PerCTA(unsigned CTA_ID) const;                                          // Returns the number of PCs for a CTA in the PerCTA table
@@ -128,6 +130,7 @@ namespace CTA_Aware
                         const unsigned int INVALID = std::numeric_limits<unsigned int>::max();
                         std::list<std::pair<new_addr_type, unsigned int>> prefetch_requests;   // List of prefetch requests. Each request is a pair of the address and the warp ID
                         long unsigned num_prefetch_requests = 0;
+                        
 
                         std::set<std::pair<new_addr_type, unsigned int>> prefetch_send; // List of prefetch requests which have been sent to the memory system
 

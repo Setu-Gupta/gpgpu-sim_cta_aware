@@ -23,6 +23,11 @@ std::vector<new_addr_type> CTA_Aware::CTA_Aware_Prefetcher::get_coalesced_addres
         return retvec;
 }
 
+new_addr_type CTA_Aware::CTA_Aware_Prefetcher::get_coalesced_addresses(const new_addr_type addrs) const
+{
+        return addrs & ~((1ULL << COALESCING_BITS) - 1);
+}
+
 /*
  * Checks whether there is an entry mapped to the given CTA_ID and PC in the PerCTA Table
  */
@@ -171,197 +176,245 @@ unsigned int CTA_Aware::CTA_Aware_Prefetcher::get_warp_id()
  * Called by the LDST unit with the uncoalesced addresses of all threads of a warp
  */
 void CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_candidates(std::list<CTA_Aware::CTA_data_t> data, unsigned long long cycle)
-{
+{ 
         std::list<std::pair<new_addr_type, unsigned int>> candidates;
+        bool flag = 0; // Flag == 1 indicates that this is a new execution for that warp
         for(CTA_Aware::CTA_data_t& d: data) // Executed once for each warp in the SM
         {
-                // Create a set of coalesced addresses
-                std::vector<new_addr_type> coalesced_addresses = this->get_coalesced_addresses(std::move(d.base_addresses));
-                if(coalesced_addresses.size() > VARIATION)
-                        continue;
-
-                if(!this->in_PerCTA(d.CTA_ID, d.PC) && !this->in_Dist(d.PC))
+                if(warp_base_addr.find(d.Warp_ID) != warp_base_addr.end())
                 {
-                        // This is the first time that we've seen this CTA, PC pair
-                        this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses), cycle)));
-                        this->print_PerCTA_table();
-                }
-                else if(!this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
-                {
-                        // This is the second instance of this PC indicating a repeated warp of the same CTA. Calculate stride
-                        this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(coalesced_addresses), cycle)));
-                        this->print_PerCTA_table();
-                        // Compute the prefetch candidates
-                        long long int stride = this->Dist_table[d.PC].stride;
-                        if(this->Dist_table[d.PC].misprediction_counter < 128) {
-                                for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
-                                {
-                                        int distance = idx - d.Warp_ID;
-                                        if(distance != 0)
-                                        {
-                                                for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
-                                                {
-                                                        new_addr_type prefetch_candidate = base + (stride * distance);
-                                                        std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C1" << std::endl;
-                                                        candidates.push_back(std::make_pair(prefetch_candidate, idx));
-                                                }
-                                        }
-                                }
+                        new_addr_type base_addr = warp_base_addr[d.Warp_ID];
+                        if(base_addr != d.base_addresses.front())
+                        {
+                                warp_base_addr[d.Warp_ID] = d.base_addresses.front();
+                                flag = 1;
                         }
                 }
-                else if(this->in_PerCTA(d.CTA_ID, d.PC) && !this->in_Dist(d.PC))
+                else
                 {
-                        // We have seen this CTA and this PC before but we haven't calculated the stride yet
-
-                        PerCTA_entry_t prev_entry = this->PerCTA_table[d.CTA_ID][d.PC];
-                        this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
-
-                        // Sort the addresses and find the smaller vector
-                        std::sort(prev_entry.base_addresses.begin(), prev_entry.base_addresses.end());
-                        std::sort(coalesced_addresses.begin(), coalesced_addresses.end());
-
-                        std::size_t num_addr = std::min(prev_entry.base_addresses.size(), coalesced_addresses.size());
-                        if(num_addr == 0)
+                        warp_base_addr[d.Warp_ID] = d.base_addresses.front();
+                        flag = 1;
+                }
+                if(flag)
+                {
+                        // Create a set of coalesced addresses
+                        std::vector<new_addr_type> coalesced_addresses = this->get_coalesced_addresses(std::move(d.base_addresses));
+                        if(coalesced_addresses.size() > VARIATION)
                                 continue;
 
-                        int difference = d.Warp_ID - prev_entry.leading_warp_id;
-                        std::set<long long int> strides;
-                        for(std::size_t i = 0; i < num_addr; i++)
+                        if(!this->in_PerCTA(d.CTA_ID, d.PC) && !this->in_Dist(d.PC))
                         {
-                                long long int stride = coalesced_addresses.at(i) - prev_entry.base_addresses.at(i);
-                                if(stride != 0 && difference != 0)
-                                        strides.insert(stride/difference);
+                                // This is the first time that we've seen this CTA, PC pair
+                                this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(d.base_addresses), cycle)));
+                                this->print_PerCTA_table();
                         }
-
-                        // Only update the Dist table and generate prefetch candidates if there is a single stride
-                        if(strides.size() == 1)
-                        {       
-                                assert(this->Dist_table.find(d.PC) == this->Dist_table.end() && "Dist table should not have an entry for this PC");
-                                this->Dist_table.insert(std::make_pair(d.PC, Dist_entry_t(*strides.begin(), cycle)));
-                                this->print_Dist_table();
+                        else if(!this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
+                        {
+                                // This is the second instance of this PC indicating a repeated warp of the same CTA. Calculate stride
+                                this->PerCTA_table[d.CTA_ID].insert(std::make_pair(d.PC, PerCTA_entry_t(d.Warp_ID, std::move(d.base_addresses), cycle)));
+                                this->print_PerCTA_table();
                                 // Compute the prefetch candidates
                                 long long int stride = this->Dist_table[d.PC].stride;
-
-                                // At this point we haven't issued prefetch requests for other CTAs as we don't have the stride. Therefore, issue for all CTAs
-                                for(const auto& p: PerCTA_table)
-                                {
-                                        if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
+                                if(this->Dist_table[d.PC].misprediction_counter < 128) {
+                                        for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
                                         {
-                                                for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
+                                                int distance = idx - d.Warp_ID;
+                                                if(distance != 0)
                                                 {
-                                                        int distance = idx - d.Warp_ID;
-                                                        if(distance != 0)
+                                                        std::vector<new_addr_type> addrs;
+                                                        for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
                                                         {
-                                                                for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
-                                                                {
-                                                                        new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                        std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C2"<< std::endl;
-                                                                        candidates.push_back(std::make_pair(prefetch_candidate, idx));
-                                                                }
+                                                                new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                addrs.push_back(prefetch_candidate);   
                                                         }
-                                                }
-                                        }
-                                        else // Prefetching for other CTAs
-                                        {
-                                                auto it = p.second.find(d.PC);
-                                                if(it != p.second.end())
-                                                {
-                                                        for(unsigned int idx = ((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
+                                                        std::vector<new_addr_type> coalesced_addresses = this->get_coalesced_addresses(std::move(addrs));
+                                                        for(new_addr_type& a : coalesced_addresses)
                                                         {
-                                                                int distance = idx - d.Warp_ID;
-                                                                if(distance != 0)
-                                                                {
-                                                                        for(new_addr_type base: it->second.base_addresses)
-                                                                        {
-                                                                                new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                                std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << p.first << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C3" << std::endl;
-                                                                                candidates.push_back(std::make_pair(prefetch_candidate, idx));
-                                                                        }
-                                                                }
-                                                        }
+                                                                std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << a << " Stride " << stride << " Distance " << distance << " C1" << std::endl;
+                                                                candidates.push_back(std::make_pair(a, idx));
+                                                        }   
                                                 }
                                         }
                                 }
                         }
-                }
-                else if(this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
-                {
-                        // Calculate the stride
-                        PerCTA_entry_t prev_entry = this->PerCTA_table[d.CTA_ID][d.PC];
-                        this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
-
-                        // Sort the addresses and find the smaller vector
-                        std::sort(prev_entry.base_addresses.begin(), prev_entry.base_addresses.end());
-                        std::sort(coalesced_addresses.begin(), coalesced_addresses.end());
-
-                        std::size_t num_addr = std::min(prev_entry.base_addresses.size(), coalesced_addresses.size());
-                        if(num_addr == 0)
-                                continue;
-
-                        int difference = d.Warp_ID - prev_entry.leading_warp_id;
-                        std::set<long long int> strides;
-                        for(std::size_t i = 0; i < num_addr; i++)
+                        else if(this->in_PerCTA(d.CTA_ID, d.PC) && !this->in_Dist(d.PC))
                         {
-                                long long int stride = coalesced_addresses.at(i) - prev_entry.base_addresses.at(i);
-                                if(stride != 0 && difference != 0)
-                                        strides.insert(stride/difference);
-                        }
-                        this->print_Dist_table();
-                        if(strides.size() > 1 || strides.size() == 0)
-                                this->Dist_table[d.PC].misprediction_counter++;
-                        else if(*strides.begin() != this->Dist_table[d.PC].stride){
-                                this->Dist_table[d.PC].misprediction_counter++;
-                                this->Dist_table[d.PC].expected_stride = *strides.begin();
-                        } else if(*strides.begin() == this->Dist_table[d.PC].stride)
-                                this->Dist_table[d.PC].correct_counter++;
+                                // We have seen this CTA and this PC before but we haven't calculated the stride yet
 
+                                PerCTA_entry_t prev_entry = this->PerCTA_table[d.CTA_ID][d.PC];
+                                this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
 
-                        if(d.Warp_ID == prev_entry.leading_warp_id) // This is the second iteration of the same PC from the same CTA
-                        {
-                                if(prev_entry.base_addresses != coalesced_addresses) // New set of base address found
+                                // Sort the addresses and find the smaller vector
+                                std::sort(prev_entry.base_addresses.begin(), prev_entry.base_addresses.end());
+                                std::sort(d.base_addresses.begin(), d.base_addresses.end());
+
+                                std::size_t num_addr = std::min(prev_entry.base_addresses.size(), d.base_addresses.size());
+                                if(num_addr == 0)
+                                        continue;
+
+                                int difference = d.Warp_ID - prev_entry.leading_warp_id;
+                                std::set<long long int> strides;
+                                for(std::size_t i = 0; i < num_addr; i++)
                                 {
-                                        // Update the PerCTA entry to reflect new base addresses
-                                        this->PerCTA_table[d.CTA_ID][d.PC].base_addresses = coalesced_addresses;
-                                        this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
+                                        long long int stride = d.base_addresses.at(i) - prev_entry.base_addresses.at(i);
+                                        if(stride != 0 && difference != 0)
+                                                strides.insert(stride/difference);
+                                }
 
-                                        if(this->Dist_table[d.PC].misprediction_counter < 128)
+                                // Only update the Dist table and generate prefetch candidates if there is a single stride
+                                if(strides.size() == 1)
+                                {       
+                                        assert(this->Dist_table.find(d.PC) == this->Dist_table.end() && "Dist table should not have an entry for this PC");
+                                        this->Dist_table.insert(std::make_pair(d.PC, Dist_entry_t(*strides.begin(), cycle)));
+                                        this->print_Dist_table();
+                                        // Compute the prefetch candidates
+                                        long long int stride = this->Dist_table[d.PC].stride;
+
+                                        // At this point we haven't issued prefetch requests for other CTAs as we don't have the stride. Therefore, issue for all CTAs
+                                        for(const auto& p: PerCTA_table)
                                         {
-                                                // Compute the prefetch candidates
-                                                long long int stride = this->Dist_table[d.PC].stride;
-
-                                                for(const auto& p: PerCTA_table)
+                                                if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
                                                 {
-                                                        if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
+                                                        // for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
+                                                        // {
+                                                        //         int distance = idx - d.Warp_ID;
+                                                        //         if(distance != 0)
+                                                        //         {
+                                                        //                 for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
+                                                        //                 {
+                                                        //                         new_addr_type prefetch_candidate = base + (stride * distance);
+                                                        //                         std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C2"<< std::endl;
+                                                        //                         candidates.push_back(std::make_pair(prefetch_candidate, idx));
+                                                        //                 }
+                                                        //         }
+                                                        // }
+                                                        continue;
+                                                }
+                                                else // Prefetching for other CTAs
+                                                {
+                                                        auto it = p.second.find(d.PC);
+                                                        if(it != p.second.end())
                                                         {
-                                                                for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
+                                                                for(unsigned int idx = ((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
                                                                 {
                                                                         int distance = idx - d.Warp_ID;
                                                                         if(distance != 0)
                                                                         {
-                                                                                for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
+                                                                                std::vector<new_addr_type> addrs;
+                                                                                for(new_addr_type base: it->second.base_addresses)
                                                                                 {
                                                                                         new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                                        std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C4"<< std::endl;
-                                                                                        candidates.push_back(std::make_pair(prefetch_candidate, idx));
+                                                                                        addrs.push_back(prefetch_candidate);   
                                                                                 }
+                                                                                std::vector<new_addr_type> coalesced_addresses = this->get_coalesced_addresses(std::move(addrs));
+                                                                                for(new_addr_type& a : coalesced_addresses)
+                                                                                {
+                                                                                        std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << a << " Stride " << stride << " Distance " << distance << " C1" << std::endl;
+                                                                                        candidates.push_back(std::make_pair(a, idx));
+                                                                                }  
                                                                         }
                                                                 }
                                                         }
-                                                        else // Prefetching for other CTAs
+                                                }
+                                        }
+                                }
+                        }
+                        else if(this->in_PerCTA(d.CTA_ID, d.PC) && this->in_Dist(d.PC))
+                        {
+                                // Calculate the stride
+                                PerCTA_entry_t prev_entry = this->PerCTA_table[d.CTA_ID][d.PC];
+                                this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
+
+                                // Sort the addresses and find the smaller vector
+                                std::sort(prev_entry.base_addresses.begin(), prev_entry.base_addresses.end());
+                                std::sort(d.base_addresses.begin(), d.base_addresses.end());
+
+                                std::size_t num_addr = std::min(prev_entry.base_addresses.size(), d.base_addresses.size());
+                                if(num_addr == 0)
+                                        continue;
+
+                                int difference = d.Warp_ID - prev_entry.leading_warp_id;
+                                std::set<long long int> strides;
+                                for(std::size_t i = 0; i < num_addr; i++)
+                                {
+                                        long long int stride = d.base_addresses.at(i) - prev_entry.base_addresses.at(i);
+                                        if(stride != 0 && difference != 0)
+                                                strides.insert(stride/difference);
+                                }
+                                this->print_Dist_table();
+                                if(strides.size() > 1 || strides.size() == 0)
+                                        // this->Dist_table[d.PC].misprediction_counter = 128;
+                                        this->Dist_table[d.PC].misprediction_counter++;
+                                else if(*strides.begin() != this->Dist_table[d.PC].stride){
+                                        //this->Dist_table[d.PC].misprediction_counter = 128;
+                                        this->Dist_table[d.PC].expected_stride = *strides.begin();
+                                        this->Dist_table[d.PC].misprediction_counter++;
+                                        this->print_Dist_table();
+                                        std::cout << "Shader_ID: " << shader_id << " Saba Removing entry from Dist table for PC: " << d.PC << " delta : " << this->Dist_table[d.PC].stride;
+                                        this->Dist_table.erase(d.PC);
+                                } else if(*strides.begin() == this->Dist_table[d.PC].stride)
+                                        this->Dist_table[d.PC].correct_counter++;
+
+
+                                if(d.Warp_ID == prev_entry.leading_warp_id) // This is the second iteration of the same PC from the same CTA
+                                {
+                                        if(prev_entry.base_addresses != d.base_addresses) // New set of base address found
+                                        {
+                                                // Update the PerCTA entry to reflect new base addresses
+                                                this->PerCTA_table[d.CTA_ID][d.PC].base_addresses = d.base_addresses;
+                                                this->PerCTA_table[d.CTA_ID][d.PC].cycle = cycle;
+
+                                                if(this->Dist_table[d.PC].misprediction_counter < 128)
+                                                {
+                                                        // Compute the prefetch candidates
+                                                        long long int stride = this->Dist_table[d.PC].stride;
+
+                                                        for(const auto& p: PerCTA_table)
                                                         {
-                                                                auto it = p.second.find(d.PC);
-                                                                if(it != p.second.end())
+                                                                if(p.first == d.CTA_ID) // Prefetching for the remaining warps of the same CTA
                                                                 {
-                                                                        for(unsigned int idx = ((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
+                                                                        for(unsigned int idx = (d.CTA_ID * d.num_warps); idx < ((d.CTA_ID + 1) * d.num_warps); idx++)
                                                                         {
-                                                                                int distance = idx - it->second.leading_warp_id;
+                                                                                int distance = idx - d.Warp_ID;
                                                                                 if(distance != 0)
                                                                                 {
-                                                                                        for(new_addr_type base: it->second.base_addresses)
+                                                                                        std::vector<new_addr_type> addrs;
+                                                                                        for(new_addr_type base: this->PerCTA_table[d.CTA_ID][d.PC].base_addresses)
                                                                                         {
                                                                                                 new_addr_type prefetch_candidate = base + (stride * distance);
-                                                                                                std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << p.first << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << prefetch_candidate << " Stride " << stride << " Distance " << distance << " C5" << std::endl;
-                                                                                                candidates.push_back(std::make_pair(prefetch_candidate, idx));
+                                                                                                addrs.push_back(prefetch_candidate);   
+                                                                                        }
+                                                                                        std::vector<new_addr_type> coalesced_addresses = this->get_coalesced_addresses(std::move(addrs));
+                                                                                        for(new_addr_type& a : coalesced_addresses)
+                                                                                        {
+                                                                                                std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << a << " Stride " << stride << " Distance " << distance << " C1" << std::endl;
+                                                                                                candidates.push_back(std::make_pair(a, idx));
+                                                                                        } 
+                                                                                }
+                                                                        }
+                                                                }
+                                                                else // Prefetching for other CTAs
+                                                                {
+                                                                        auto it = p.second.find(d.PC);
+                                                                        if(it != p.second.end())
+                                                                        {
+                                                                                for(unsigned int idx = ((p.first - 1) * d.num_warps); idx < (p.first * d.num_warps); idx++)
+                                                                                {
+                                                                                        int distance = idx - it->second.leading_warp_id;
+                                                                                        if(distance != 0)
+                                                                                        {
+                                                                                                std::vector<new_addr_type> addrs;
+                                                                                                for(new_addr_type base: it->second.base_addresses)
+                                                                                                {
+                                                                                                        new_addr_type prefetch_candidate = base + (stride * distance);
+                                                                                                        addrs.push_back(prefetch_candidate);   
+                                                                                                }
+                                                                                                std::vector<new_addr_type> coalesced_addresses = this->get_coalesced_addresses(std::move(addrs));
+                                                                                                for(new_addr_type& a : coalesced_addresses)
+                                                                                                {
+                                                                                                        std::cout << "Shader_ID: " << shader_id << "  CTA_ID: " << d.CTA_ID << "  Warp_ID: " << idx << " PC: " << d.PC << " Prefetching address: " << a << " Stride " << stride << " Distance " << distance << " C1" << std::endl;
+                                                                                                        candidates.push_back(std::make_pair(a, idx));
+                                                                                                } 
                                                                                         }
                                                                                 }
                                                                         }
@@ -370,15 +423,15 @@ void CTA_Aware::CTA_Aware_Prefetcher::generate_prefetch_candidates(std::list<CTA
                                                 }
                                         }
                                 }
+                        
+                                if(this->Dist_table[d.PC].misprediction_counter >= MISPRED_THRESH && REMOVE_WHEN_misprediction_counter_IS_128) {
+                                        // Remove the entry from the Dist table
+                                        std::cout << "Shader_ID: " << shader_id << "  Removing entry from Dist table for PC: " << d.PC << " delta : " << this->Dist_table[d.PC].stride;
+                                        this->Dist_table.erase(d.PC);
+                                        this->print_Dist_table();
+                                }
                         }
-                
-                        if(this->Dist_table[d.PC].misprediction_counter >= MISPRED_THRESH && REMOVE_WHEN_misprediction_counter_IS_128) {
-                                // Remove the entry from the Dist table
-                                std::cout << "Shader_ID: " << shader_id << "  Removing entry from Dist table for PC: " << d.PC << " delta : " << this->Dist_table[d.PC].stride;
-                                this->Dist_table.erase(d.PC);
-                                this->print_Dist_table();
-                        }
-                }
+               }
         }
         
         if(!candidates.empty()) { // Debugging
