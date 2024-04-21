@@ -1259,6 +1259,7 @@ struct cache_sub_stats
                 unsigned demand_access;  //PD
                 unsigned prefetch_hit;  //PP ^ PD
                 unsigned inaccurate_access; //Timeliness
+                unsigned ldst_prefetch_hit;
 
                 unsigned long long port_available_cycles;
                 unsigned long long data_port_busy_cycles;
@@ -1281,6 +1282,7 @@ struct cache_sub_stats
                         prefetch_access       = 0;
                         demand_access         = 0;
                         prefetch_hit          = 0;
+                        ldst_prefetch_hit          = 0;
                         inaccurate_access     = 0;
                 }
                 cache_sub_stats& operator+=(const cache_sub_stats& css)
@@ -1296,6 +1298,7 @@ struct cache_sub_stats
                         prefetch_access += css.prefetch_access;
                         demand_access += css.demand_access;
                         prefetch_hit += css.prefetch_hit;
+                        ldst_prefetch_hit += css.ldst_prefetch_hit;
                         inaccurate_access += css.inaccurate_access;
 
                         port_available_cycles += css.port_available_cycles;
@@ -1318,6 +1321,7 @@ struct cache_sub_stats
                         ret.prefetch_access += prefetch_access + cs.prefetch_access;
                         ret.demand_access += demand_access + cs.demand_access;
                         ret.prefetch_hit += prefetch_hit + cs.prefetch_hit;
+                        ret.ldst_prefetch_hit += ldst_prefetch_hit + cs.ldst_prefetch_hit;
                         ret.inaccurate_access += inaccurate_access + cs.inaccurate_access;
 
                         ret.port_available_cycles = port_available_cycles + cs.port_available_cycles;
@@ -1439,6 +1443,9 @@ class cache_stats
                 void inc_num_prefetch_hit(int s){
                         m_num_prefetch_hit += s;
                 }
+                void inc_num_ldst_prefetch_hit(int s){
+                        m_num_ldst_prefetch_hit += s;
+                }
 
         private:
                 bool check_valid(int type, int status) const;
@@ -1453,6 +1460,7 @@ class cache_stats
                 unsigned m_num_demand_access;
                 unsigned m_num_inaccurate_access;
                 unsigned m_num_prefetch_hit;
+                unsigned m_num_ldst_prefetch_hit;
                 
                 unsigned long long m_cache_port_available_cycles;
                 unsigned long long m_cache_data_port_busy_cycles;
@@ -1575,6 +1583,10 @@ class baseline_cache: public cache_t
 
                 void get_inc_num_prefetch_hit(int s){
                         m_stats.inc_num_prefetch_hit(s);
+                }
+
+                void get_inc_num_ldst_prefetch_hit(int s){
+                        m_stats.inc_num_ldst_prefetch_hit(s);
                 }
 
                 // accessors for cache bandwidth availability

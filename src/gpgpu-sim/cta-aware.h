@@ -17,7 +17,7 @@
 #define MAX_CTA_TABLE_SIZE  4   // Maximum number of entries in the PerCTA table for each CTA
 #define MAX_DIST_TABLE_SIZE 4   // Maximum number of entries in the Distance table
 #define MISPRED_THRESH      128 // Maximum number of allowed mispredictions per PC
-#define COALESCING_BITS     7   // Number of lower order bits to mask off while coalescing
+#define COALESCING_BITS     5   // Number of lower order bits to mask off while coalescing
 
 namespace CTA_Aware
 {

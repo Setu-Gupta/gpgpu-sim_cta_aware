@@ -284,7 +284,7 @@ class mem_fetch
                 mem_fetch* original_wr_mf; // this pointer refers to the original write req,
                                            // when fetch-on-write policy is used
 
-                bool s_prefetched;
+                bool s_prefetched = false;
                 bool s_hit;
                 bool is_found;
 };

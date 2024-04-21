@@ -392,7 +392,7 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time, u
                 case HIT_RESERVED:
                         m_pending_hit++;
                 case PREFETCH_HIT:
-                        if(m_lines[idx]->is_prefetched())
+                        if(m_lines[idx]->is_prefetched() && !mf->is_prefetched())
                         {
                                 m_prefetched_hit++;
                         }
@@ -1022,7 +1022,7 @@ void cache_stats::get_sub_stats(struct cache_sub_stats& css) const
         t_css.prefetch_access = m_num_prefetch_access;
         t_css.demand_access = m_num_demand_access;
         t_css.inaccurate_access = m_num_inaccurate_access;
-        //t_css.prefetch_hit = m_num_prefetch_hit;
+        t_css.ldst_prefetch_hit = m_num_ldst_prefetch_hit;
         
         t_css.port_available_cycles = m_cache_port_available_cycles;
         t_css.data_port_busy_cycles = m_cache_data_port_busy_cycles;

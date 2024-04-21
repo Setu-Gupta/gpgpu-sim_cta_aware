@@ -2323,11 +2323,22 @@ void ldst_unit::L1_latency_queue_cycle()
                                 prefetched_warpId.insert(inst.warp_id());
                                 mf_for_prefetch = mf_next;
                         }
+                        assert(!mf_next->is_prefetched());
                         enum cache_request_status status = m_L1D->access(mf_next->get_addr(), mf_next, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle, events);
 
                         if(mf_next->get_inst().is_load() && status != RESERVATION_FAIL)
                         {
-                                m_L1D->get_inc_num_demands(1);
+                                
+                                if(status == HIT || status == MISS || status == HIT_RESERVED)
+                                {
+                                        m_L1D->get_inc_num_demands(1);
+                                }
+                                else if(status == PREFETCH_HIT)
+                                {
+                                        m_L1D->get_inc_num_demands(1);
+                                        // Add Prefetch hit counter
+                                        m_L1D->get_inc_num_ldst_prefetch_hit(1);
+                                }
                         }
 
 
@@ -3460,6 +3471,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE* fout) const
 
                 fprintf(fout,"\tnum of Total send prefetch requests:  %u\n",total_css.prefetch_access);
                 fprintf(fout,"\tnum of Total demnad request:  %u\n",total_css.demand_access);
+                fprintf(fout,"\tPrefetch HIT in ldst:  %u\n", total_css.ldst_prefetch_hit);
                 fprintf(fout,"\tCoverage:  %u\n",total_css.prefetch_hit);
                 fprintf(fout,"\tInaccuracy:  %u\n", total_css.inaccurate_access);
         }
